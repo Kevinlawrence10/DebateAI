@@ -1,35 +1,18 @@
 # ============================================================
-# DEBATEAI - CLEAN STREAMLIT APP
-# ============================================================
-# Install:
-#   pip install streamlit requests faster-whisper SpeechRecognition
-# Optional fallback:
-#   pip install SpeechRecognition
-#
-# Ollama:
-#   ollama pull llama3.2:3b
-#   ollama serve
-#
-# Run:
-#   streamlit run app.py
-#
-# Voice-to-text:
-#   The first recording may take time because faster-whisper downloads
-#   the selected model. Default model: base.en
-#   You can use WHISPER_MODEL=tiny.en for a faster lightweight demo.
+# DEBATEAI — THE CHAMBER
+# Streamlit + Ollama + Whisper
 # ============================================================
 
-import html
-import io
+import streamlit as st
+import requests
 import json
-import os
 import random
-import textwrap
+import html
+import os
+import io
 import hashlib
 import tempfile
-
-import requests
-import streamlit as st
+import textwrap
 
 
 # ============================================================
@@ -37,450 +20,998 @@ import streamlit as st
 # ============================================================
 
 st.set_page_config(
-    page_title="DebateAI",
-    page_icon="⚡",
-    layout="wide",
+    page_title="The Chamber — DebateAI",
+    page_icon="◈",
+    layout="centered",
     initial_sidebar_state="collapsed",
 )
 
 
 # ============================================================
-# CSS
-# IMPORTANT:
-# All custom HTML is passed through render_html(), which removes
-# Python indentation before Streamlit receives the markdown.
-# This prevents HTML from being displayed as a code block.
+# CHAMBER CSS
 # ============================================================
 
 st.markdown(
     """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
 
 :root {
-    --bg: #08090d;
-    --panel: #111218;
-    --panel-2: #151620;
-    --border: #292b35;
-    --muted: #858792;
-    --text: #f5f5f7;
-    --purple: #7c5cff;
-    --blue: #4c8fff;
-    --green: #55dfaa;
-    --red: #ff8090;
+    --bg: #12141b;
+    --surface: #1a1d28;
+    --surface2: #20232f;
+
+    --border: rgba(245,241,232,.08);
+    --border2: rgba(245,241,232,.16);
+
+    --text: #f2ede1;
+    --dim: #9aa0ae;
+    --faint: #666c7a;
+
+    --brass: #c9a15c;
+    --brass-dim: rgba(201,161,92,.35);
+
+    --green: #3aa88a;
+    --green-dim: rgba(58,168,138,.14);
+
+    --red: #d0555f;
+    --red-dim: rgba(208,85,95,.14);
 }
 
+
+/* ============================================================
+   GLOBAL
+   ============================================================ */
+
 * {
-    font-family: 'DM Sans', sans-serif;
+    box-sizing: border-box;
 }
 
 .stApp {
     background:
-        radial-gradient(circle at 10% 10%, rgba(124,92,255,.12), transparent 30%),
-        radial-gradient(circle at 90% 20%, rgba(0,210,255,.08), transparent 30%),
+        radial-gradient(
+            1200px 600px at 50% -10%,
+            rgba(140,60,60,.16),
+            transparent 60%
+        ),
+        radial-gradient(
+            900px 500px at 90% 100%,
+            rgba(60,110,100,.12),
+            transparent 60%
+        ),
         var(--bg);
+
     color: var(--text);
 }
 
 .block-container {
-    max-width: 1250px;
-    padding-top: 1.15rem;
-    padding-bottom: 3rem;
+    max-width: 760px !important;
+    padding-top: 30px !important;
+    padding-bottom: 60px !important;
 }
 
 #MainMenu,
-footer {
+footer,
+header {
     visibility: hidden;
 }
 
-header {
-    background: transparent !important;
+* {
+    font-family: 'Inter', sans-serif;
 }
 
 h1, h2, h3 {
-    font-family: 'Space Grotesk', sans-serif !important;
+    font-family: 'Fraunces', serif !important;
+    color: var(--text) !important;
 }
 
-/* ---------- Brand ---------- */
+h1 {
+    font-size: clamp(30px, 5vw, 42px) !important;
+    line-height: 1.15 !important;
+    font-weight: 600 !important;
+    letter-spacing: -.01em !important;
+    margin-bottom: 10px !important;
+}
 
-.brand {
+p {
+    color: var(--dim);
+}
+
+
+/* ============================================================
+   BRAND
+   ============================================================ */
+
+.chamber-mark {
     display: flex;
     align-items: center;
-    gap: 12px;
+    justify-content: center;
+    gap: 10px;
+
+    margin-bottom: 32px;
+
+    color: var(--dim);
+
+    letter-spacing: .16em;
+    text-transform: uppercase;
+
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.chamber-mark::before,
+.chamber-mark::after {
+    content: "";
+
+    width: 24px;
+    height: 1px;
+
+    background: var(--brass-dim);
+}
+
+.chamber-mark b {
+    color: var(--brass);
+}
+
+
+/* ============================================================
+   LEDE
+   ============================================================ */
+
+.lede {
+    color: var(--dim);
+    font-size: 15px;
+    max-width: 52ch;
+    margin-bottom: 30px;
+    line-height: 1.65;
+}
+
+
+/* ============================================================
+   LABELS
+   ============================================================ */
+
+.field-label {
+    display: block;
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 11px;
+    font-weight: 700;
+
+    text-transform: uppercase;
+    letter-spacing: .1em;
+
+    color: var(--faint);
+
+    margin-bottom: 11px;
+}
+
+.section-label {
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 11px;
+    font-weight: 700;
+
+    text-transform: uppercase;
+    letter-spacing: .12em;
+
+    color: var(--brass);
+
+    margin: 28px 0 12px;
+}
+
+
+/* ============================================================
+   BIG INTERACTIVE CHOICE BUTTONS
+   IMPORTANT:
+   The entire visible card is now the actual button.
+   ============================================================ */
+
+.big-choice-row {
+    margin-top: 12px;
+    margin-bottom: 24px;
+}
+
+
+/* Every button is a proper large interactive surface */
+
+.stButton > button {
+
+    width: 100% !important;
+
+    min-height: 58px !important;
+
+    border-radius: 14px !important;
+
+    background: var(--surface2) !important;
+
+    border: 1px solid var(--border2) !important;
+
+    color: var(--text) !important;
+
+    font-family: 'Inter', sans-serif !important;
+
+    font-size: 14px !important;
+
+    font-weight: 700 !important;
+
+    padding: 12px 18px !important;
+
+    transition:
+        transform .18s ease,
+        border-color .18s ease,
+        background .18s ease,
+        box-shadow .18s ease !important;
+
+    box-shadow: none !important;
+}
+
+
+.stButton > button:hover {
+
+    background: #262a38 !important;
+
+    border-color: var(--brass-dim) !important;
+
+    color: var(--text) !important;
+
+    transform: translateY(-2px) !important;
+
+    box-shadow:
+        0 8px 24px rgba(0,0,0,.18) !important;
+}
+
+
+.stButton > button:active {
+
+    transform: translateY(0) !important;
+
+}
+
+
+/* Primary buttons */
+
+.stButton > button[kind="primary"] {
+
+    background: var(--brass) !important;
+
+    color: #1a1408 !important;
+
+    border-color: var(--brass) !important;
+
+}
+
+
+.stButton > button[kind="primary"]:hover {
+
+    background: #d6b16d !important;
+
+    color: #1a1408 !important;
+
+}
+
+
+/* ============================================================
+   TOPIC CHOICE BUTTONS
+   ============================================================ */
+
+.topic-choice {
+
+    min-height: 125px !important;
+
+    display: flex !important;
+
+    align-items: center !important;
+
+    justify-content: center !important;
+
+    text-align: center !important;
+
+    padding: 22px !important;
+
+    font-size: 16px !important;
+
+    line-height: 1.5 !important;
+
+}
+
+
+/* ============================================================
+   STANCE BUTTONS
+   ============================================================ */
+
+.stance-button {
+
+    min-height: 170px !important;
+
+    display: flex !important;
+
+    align-items: center !important;
+
+    justify-content: center !important;
+
+    text-align: center !important;
+
+    font-family: 'Fraunces', serif !important;
+
+    font-size: 25px !important;
+
+}
+
+
+.stance-for-button {
+
+    border-color: rgba(58,168,138,.30) !important;
+
+}
+
+
+.stance-for-button:hover {
+
+    border-color: var(--green) !important;
+
+    background: var(--green-dim) !important;
+
+}
+
+
+.stance-against-button {
+
+    border-color: rgba(208,85,95,.30) !important;
+
+}
+
+
+.stance-against-button:hover {
+
+    border-color: var(--red) !important;
+
+    background: var(--red-dim) !important;
+
+}
+
+
+/* ============================================================
+   TOPIC PLAQUE
+   ============================================================ */
+
+.topic-plaque {
+
+    background: var(--surface);
+
+    border: 1px solid var(--border);
+
+    border-left: 3px solid var(--brass);
+
+    border-radius: 4px 14px 14px 4px;
+
+    padding: 22px 25px;
+
+    margin: 20px 0 28px;
+}
+
+.topic-eyebrow {
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 10px;
+
+    text-transform: uppercase;
+
+    letter-spacing: .14em;
+
+    color: var(--brass);
+
+    font-weight: 700;
+
+    margin-bottom: 8px;
+}
+
+.topic-resolution {
+
+    font-family: 'Fraunces', serif;
+
+    font-size: 20px;
+
+    font-weight: 500;
+
+    line-height: 1.45;
+
+    color: var(--text);
+}
+
+
+/* ============================================================
+   DEBATE HEADER
+   ============================================================ */
+
+.debate-header {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: flex-start;
+
+    gap: 16px;
+
     margin-bottom: 20px;
 }
 
-.brand-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 13px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #7c5cff, #3e8cff);
-    font-size: 20px;
-    box-shadow: 0 8px 30px rgba(124,92,255,.25);
+.debate-resolution {
+
+    font-family: 'Fraunces', serif;
+
+    font-size: 19px;
+
+    font-weight: 500;
+
+    line-height: 1.4;
+
+    color: var(--text);
 }
 
-.brand-name {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 20px;
-    font-weight: 700;
-}
+.side-tag {
 
-.brand-sub {
-    font-size: 12px;
-    color: #777985;
-}
+    display: inline-block;
 
-/* ---------- Hero ---------- */
+    font-family: 'JetBrains Mono', monospace;
 
-.hero {
-    text-align: center;
-    padding: 35px 20px 25px;
-}
+    font-size: 10px;
 
-.hero h1 {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: clamp(38px, 5vw, 54px);
-    line-height: 1.05;
-    margin: 0;
-    letter-spacing: -2px;
-}
-
-.hero h1 span {
-    background: linear-gradient(90deg, #9b83ff, #55c7ff);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-}
-
-.hero p {
-    color: #92949f;
-    font-size: 16px;
-    margin-top: 16px;
-}
-
-/* ---------- Cards ---------- */
-
-.card {
-    background: rgba(19,20,27,.92);
-    border: 1px solid #292b35;
-    border-radius: 18px;
-    padding: 22px;
-    margin-bottom: 15px;
-    box-shadow: 0 15px 50px rgba(0,0,0,.16);
-}
-
-.card-title {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 600;
-    font-size: 17px;
-    color: #f4f4f7;
-}
-
-.card-sub {
-    color: #777985;
-    font-size: 13px;
-    margin-top: 4px;
-}
-
-/* ---------- Pills ---------- */
-
-.pill {
-    display: inline-flex;
-    align-items: center;
-    padding: 6px 11px;
-    border-radius: 50px;
-    font-size: 11px;
-    line-height: 1;
-    font-weight: 700;
-    margin-right: 6px;
-}
-
-.pill-purple {
-    background: rgba(124,92,255,.14);
-    color: #a897ff;
-}
-
-.pill-green {
-    background: rgba(50,210,140,.12);
-    color: #55dfaa;
-}
-
-.pill-red {
-    background: rgba(255,90,110,.12);
-    color: #ff8090;
-}
-
-.pill-muted {
-    background: #171820;
-    color: #777985;
-}
-
-/* ---------- Topic ---------- */
-
-.topic-box {
-    background: linear-gradient(135deg, #14151d, #101117);
-    border: 1px solid #2c2e39;
-    border-radius: 18px;
-    padding: 20px 22px;
-    margin: 14px 0;
-}
-
-.topic-label {
-    color: #858792;
-    font-size: 11px;
-    letter-spacing: 1.5px;
     text-transform: uppercase;
-}
 
-.topic-text {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 21px;
-    font-weight: 600;
-    line-height: 1.35;
-    margin-top: 6px;
-}
+    letter-spacing: .08em;
 
-/* ---------- Position cards ---------- */
+    padding: 5px 10px;
+
+    border-radius: 20px;
+
+    margin-top: 8px;
+
+    font-weight: 700;
+}
 
 .side-for {
-    border: 1px solid rgba(50,210,140,.35);
-    background: rgba(50,210,140,.06);
+
+    background: var(--green-dim);
+
+    color: var(--green);
 }
 
 .side-against {
-    border: 1px solid rgba(255,90,110,.35);
-    background: rgba(255,90,110,.06);
+
+    background: var(--red-dim);
+
+    color: var(--red);
 }
 
-/* ---------- Debate transcript ---------- */
 
-.message {
-    display: flex;
-    gap: 13px;
-    margin: 18px 0;
-}
+/* ============================================================
+   ROUND TRACKER
+   ============================================================ */
 
-.avatar {
-    min-width: 38px;
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
+.round-tracker {
+
     display: flex;
+
     align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    font-weight: 700;
+
+    gap: 6px;
+
+    flex-shrink: 0;
 }
 
-.avatar-you {
-    background: #242631;
-    color: #fff;
+.round-dot {
+
+    width: 9px;
+    height: 9px;
+
+    border-radius: 50%;
+
+    background: var(--border2);
 }
 
-.avatar-ai {
-    background: linear-gradient(135deg, #765aff, #438fff);
-    color: #fff;
+.round-dot.done {
+
+    background: var(--brass);
 }
 
-.message-body {
-    flex: 1;
-    min-width: 0;
+.round-dot.now {
+
+    background: var(--brass);
+
+    box-shadow:
+        0 0 0 4px rgba(201,161,92,.18);
 }
 
-.message-name {
-    font-size: 12px;
-    color: #858792;
-    margin-bottom: 6px;
-    letter-spacing: .3px;
-}
+.round-number {
 
-.message-text {
-    font-size: 15px;
-    line-height: 1.65;
-    color: #e7e7eb;
-}
+    font-family: 'JetBrains Mono', monospace;
 
-.ai-response {
-    background: linear-gradient(135deg, rgba(124,92,255,.08), rgba(55,145,255,.04));
-    border: 1px solid rgba(124,92,255,.22);
-    border-radius: 17px;
-    padding: 20px;
-}
-
-.ai-label {
-    color: #9b8cff;
     font-size: 10px;
+
+    color: var(--dim);
+
+    margin-left: 7px;
+
+    white-space: nowrap;
+}
+
+
+/* ============================================================
+   BUBBLES
+   ============================================================ */
+
+.bubble {
+
+    border-radius: 16px;
+
+    padding: 20px 22px;
+
+    border: 1px solid var(--border);
+
+    margin-bottom: 15px;
+}
+
+.bubble-user {
+
+    background: var(--surface);
+
+    border-left: 3px solid var(--brass);
+}
+
+.bubble-ai {
+
+    background: var(--surface2);
+}
+
+.bubble-label {
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 10px;
+
+    text-transform: uppercase;
+
+    letter-spacing: .1em;
+
     font-weight: 700;
-    letter-spacing: 1.2px;
-    margin-bottom: 7px;
+
+    color: var(--brass);
+
+    margin-bottom: 10px;
 }
 
-.ai-label.blue {
-    color: #68c6ff;
+.bubble-ai .bubble-label {
+
+    color: var(--dim);
 }
 
-.soft-divider {
-    height: 1px;
-    background: #252730;
-    margin: 18px 0;
+.bubble-text {
+
+    font-size: 15px;
+
+    line-height: 1.65;
+
+    color: var(--text);
+
+    white-space: pre-wrap;
 }
 
-/* ---------- Score ---------- */
+
+/* ============================================================
+   AI OWN POINT
+   ============================================================ */
+
+.ai-point {
+
+    margin-top: 16px;
+
+    padding-top: 16px;
+
+    border-top: 1px dashed var(--border2);
+}
+
+.ai-point-label {
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 10px;
+
+    text-transform: uppercase;
+
+    letter-spacing: .1em;
+
+    font-weight: 700;
+
+    color: var(--faint);
+
+    margin-bottom: 8px;
+}
+
+
+/* ============================================================
+   SCORE
+   ============================================================ */
 
 .score-card {
-    background: #111218;
-    border: 1px solid #292b35;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 18px;
+
+    background: var(--surface);
+
+    border: 1px solid var(--border);
+
     border-radius: 16px;
-    padding: 17px 10px;
-    text-align: center;
-    min-height: 100px;
+
+    padding: 18px 22px;
+
+    margin-bottom: 18px;
+}
+
+.score-dial {
+
+    width: 68px;
+    height: 68px;
+
+    position: relative;
+
+    flex-shrink: 0;
+}
+
+.score-dial svg {
+
+    transform: rotate(-90deg);
+}
+
+.score-track {
+
+    fill: none;
+
+    stroke: var(--border2);
+
+    stroke-width: 6;
+}
+
+.score-fill {
+
+    fill: none;
+
+    stroke: var(--brass);
+
+    stroke-width: 6;
+
+    stroke-linecap: round;
 }
 
 .score-number {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 32px;
+
+    position: absolute;
+
+    inset: 0;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    font-family: 'JetBrains Mono', monospace;
+
     font-weight: 700;
-    background: linear-gradient(135deg, #9d8aff, #50baff);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+
+    font-size: 16px;
+
+    color: var(--text);
 }
 
 .score-label {
-    color: #777985;
-    font-size: 11px;
-    margin-top: 3px;
-}
 
-/* ---------- Progress ---------- */
+    font-family: 'JetBrains Mono', monospace;
 
-.progress-wrap {
-    height: 7px;
-    background: #242630;
-    border-radius: 20px;
-    overflow: hidden;
-    margin-bottom: 14px;
-}
+    font-size: 10px;
 
-.progress {
-    height: 100%;
-    background: linear-gradient(90deg, #7c5cff, #43a5ff);
-    border-radius: 20px;
-    transition: width .3s ease;
-}
+    text-transform: uppercase;
 
-/* ---------- Report ---------- */
+    letter-spacing: .1em;
 
-.report-score {
-    text-align: center;
-    padding: 34px;
-    border-radius: 23px;
-    background:
-        radial-gradient(circle at center, rgba(124,92,255,.18), transparent 60%),
-        #111218;
-    border: 1px solid #2c2e39;
-}
+    color: var(--faint);
 
-.big-score {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 72px;
     font-weight: 700;
-    background: linear-gradient(135deg, #9d8aff, #50baff);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+
+    margin-bottom: 5px;
 }
 
-.report-section {
-    background: #111218;
-    border: 1px solid #292b35;
-    border-radius: 18px;
-    padding: 21px;
-    margin-bottom: 14px;
+.score-reason {
+
+    font-size: 13px;
+
+    line-height: 1.55;
+
+    color: var(--dim);
 }
 
-.report-section h3 {
-    margin-top: 0;
+
+/* ============================================================
+   INPUT
+   ============================================================ */
+
+.input-card {
+
+    background: var(--surface);
+
+    border: 1px solid var(--border);
+
+    border-radius: 16px;
+
+    padding: 20px;
+
+    margin-bottom: 12px;
 }
 
-/* ---------- Inputs ---------- */
+.stTextArea textarea,
+.stTextInput input {
 
-.stTextInput input,
-.stTextArea textarea {
-    background: #111218 !important;
-    color: #f5f5f7 !important;
-    border: 1px solid #2c2e39 !important;
-    border-radius: 13px !important;
-}
+    background: var(--surface2) !important;
 
-.stTextArea textarea {
-    min-height: 135px;
-}
+    color: var(--text) !important;
 
-.stSelectbox div[data-baseweb="select"] > div {
-    background: #111218 !important;
-    border-color: #2c2e39 !important;
-}
+    border: 1px solid var(--border2) !important;
 
-/* ---------- Buttons ---------- */
-
-.stButton > button {
     border-radius: 12px !important;
-    border: 1px solid #30323d !important;
-    background: #171820 !important;
-    color: #eeeeef !important;
-    font-weight: 600 !important;
-    min-height: 44px !important;
-    transition: .2s !important;
+
+    font-family: 'Inter', sans-serif !important;
+
+    font-size: 15px !important;
 }
 
-.stButton > button:hover {
-    border-color: #806aff !important;
-    background: #1b1c26 !important;
+.stTextArea textarea {
+
+    min-height: 115px !important;
 }
 
-.primary-btn .stButton > button,
-.stButton.primary-btn > button {
-    background: linear-gradient(135deg, #765aff, #4c8fff) !important;
-    border: none !important;
-    color: white !important;
+.stTextInput input:focus,
+.stTextArea textarea:focus {
+
+    border-color: var(--brass-dim) !important;
 }
 
-/* ---------- Misc ---------- */
 
-.footer {
-    text-align: center;
-    color: #555762;
-    font-size: 11px;
-    padding: 28px 0 10px;
-}
+/* ============================================================
+   STATUS
+   ============================================================ */
 
-.status-box {
-    border: 1px solid #2c2e39;
-    background: #101117;
-    border-radius: 13px;
-    padding: 12px 14px;
-    color: #9b9da7;
+.status {
+
+    background: var(--surface2);
+
+    border: 1px solid var(--border);
+
+    border-radius: 12px;
+
+    padding: 11px 14px;
+
+    color: var(--dim);
+
     font-size: 12px;
+
+    margin: 10px 0;
 }
 
-@media (max-width: 700px) {
+
+/* ============================================================
+   LOADING
+   ============================================================ */
+
+.loading {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 5px;
+
+    color: var(--dim);
+
+    font-size: 13px;
+
+    padding: 8px 2px;
+}
+
+
+/* ============================================================
+   VERDICT
+   ============================================================ */
+
+.verdict-card {
+
+    background:
+        linear-gradient(
+            160deg,
+            var(--surface),
+            var(--surface2)
+        );
+
+    border: 1px solid var(--border);
+
+    border-radius: 18px;
+
+    padding: 34px;
+
+    text-align: center;
+
+    margin-bottom: 25px;
+}
+
+.verdict-score {
+
+    font-family: 'Fraunces', serif;
+
+    font-size: 58px;
+
+    font-weight: 600;
+
+    color: var(--brass);
+
+    line-height: 1;
+}
+
+.verdict-score span {
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 20px;
+
+    color: var(--faint);
+}
+
+.verdict-label {
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 10px;
+
+    text-transform: uppercase;
+
+    letter-spacing: .12em;
+
+    color: var(--faint);
+
+    font-weight: 700;
+
+    margin-top: 10px;
+}
+
+.verdict-overview {
+
+    margin-top: 18px;
+
+    font-size: 14px;
+
+    line-height: 1.7;
+
+    color: var(--dim);
+}
+
+
+/* ============================================================
+   CORRECTIONS
+   ============================================================ */
+
+.correction {
+
+    border: 1px solid var(--border);
+
+    border-radius: 14px;
+
+    padding: 18px 20px;
+
+    margin-bottom: 12px;
+
+    background: var(--surface);
+}
+
+.correction-head {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    margin-bottom: 8px;
+}
+
+.round-badge {
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 10px;
+
+    font-weight: 700;
+
+    color: #1a1408;
+
+    background: var(--brass);
+
+    padding: 4px 9px;
+
+    border-radius: 20px;
+}
+
+.correction-score {
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 11px;
+
+    color: var(--faint);
+}
+
+.correction p {
+
+    font-size: 14px;
+
+    line-height: 1.6;
+
+    color: var(--dim);
+}
+
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+
+.chamber-footer {
+
+    margin-top: 40px;
+
+    color: var(--faint);
+
+    font-size: 11px;
+
+    text-align: center;
+}
+
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media(max-width:700px) {
+
     .block-container {
-        padding-left: 1rem;
-        padding-right: 1rem;
+
+        padding-left: 1rem !important;
+
+        padding-right: 1rem !important;
     }
 
-    .hero {
-        padding-top: 20px;
+    .debate-header {
+
+        flex-direction: column;
     }
 
-    .topic-text {
-        font-size: 18px;
+    .topic-choice {
+
+        min-height: 110px !important;
     }
+
+    .stance-button {
+
+        min-height: 130px !important;
+    }
+
 }
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -488,23 +1019,34 @@ h1, h2, h3 {
 
 
 # ============================================================
-# SAFE HTML RENDERER
+# HELPERS
 # ============================================================
 
-def render_html(markup: str) -> None:
-    """Render UI HTML directly so Streamlit Markdown never treats it as code."""
-    cleaned = textwrap.dedent(markup).strip()
+def render_html(content):
 
-    # Streamlit's native HTML renderer does not run the Markdown parser,
-    # so indented nested <div>/<span> elements cannot accidentally become
-    # visible code blocks.
+    cleaned = textwrap.dedent(content).strip()
+
     if hasattr(st, "html"):
+
         st.html(cleaned)
+
     else:
-        # Compatibility fallback for older Streamlit versions.
-        # Remove leading whitespace from every line before Markdown parsing.
-        flat = "\n".join(line.strip() for line in cleaned.splitlines())
-        st.markdown(flat, unsafe_allow_html=True)
+
+        st.markdown(
+            cleaned,
+            unsafe_allow_html=True
+        )
+
+
+def chamber_brand():
+
+    render_html(
+        """
+        <div class="chamber-mark">
+            the <b>chamber</b> · live debate
+        </div>
+        """
+    )
 
 
 # ============================================================
@@ -512,1159 +1054,2102 @@ def render_html(markup: str) -> None:
 # ============================================================
 
 DEFAULTS = {
-    "screen": "setup",
+
+    "screen": "topic",
+
     "topic": "",
-    "topic_mode": None,
-    "user_side": None,
-    "ai_side": None,
+
+    "topic_mode": "",
+
+    "user_side": "",
+
+    "ai_side": "",
+
+    "max_rounds": 4,
+
     "round": 0,
-    "max_rounds": 3,
+
     "history": [],
+
     "scores": [],
+
     "voice_text": "",
+
     "voice_status": "",
+
     "last_audio_hash": "",
-    "argument_editor_version": 0,
+
+    "argument_version": 0,
+
+    "final_report": None,
 }
 
+
 for key, value in DEFAULTS.items():
+
     if key not in st.session_state:
+
         st.session_state[key] = value
 
 
 # ============================================================
-# DATA
+# TOPICS
 # ============================================================
 
 TOPICS = [
+
     "Should artificial intelligence be regulated?",
-    "Should college attendance be mandatory?",
-    "Should social media have an age limit?",
-    "Should AI-generated content be labelled?",
-    "Should space exploration receive more government funding?",
-    "Should students be allowed to use AI for assignments?",
-    "Should online education replace traditional classrooms?",
+
+    "Should social media companies be responsible for misinformation?",
+
+    "Should college education be completely free?",
+
+    "Should space exploration receive more public funding?",
+
+    "Should AI-generated content always be labelled?",
+
     "Should mobile phones be banned in classrooms?",
-    "Should electric vehicles completely replace petrol vehicles?",
-    "Should school students have less homework?",
+
+    "Should autonomous vehicles be allowed to make life-or-death decisions?",
+
+    "Should students be allowed to use AI for academic work?",
+
+    "Should online education replace traditional classrooms?",
+
+    "Should governments provide universal basic income?",
 ]
 
 
 # ============================================================
-# BRAND
+# OLLAMA
 # ============================================================
 
-def brand():
-    render_html(
-        """
-        <div class="brand">
-            <div class="brand-icon">⚡</div>
-            <div>
-                <div class="brand-name">DebateAI</div>
-                <div class="brand-sub">Think sharper. Argue better.</div>
-            </div>
-        </div>
-        """
-    )
+OLLAMA_URL = "http://localhost:11434/api/generate"
+
+OLLAMA_MODEL = "llama3.2:3b"
 
 
-# ============================================================
-# SPEECH TO TEXT - ROBUST VERSION
-# ============================================================
-
-def _audio_suffix(audio_file):
-    """Choose a useful temporary-file extension from the browser MIME type."""
-    mime = getattr(audio_file, "type", "") or ""
-    if "webm" in mime:
-        return ".webm"
-    if "ogg" in mime:
-        return ".ogg"
-    if "mp4" in mime or "m4a" in mime:
-        return ".m4a"
-    return ".wav"
-
-
-def transcribe_audio(audio_file):
-    """
-    Convert Streamlit's audio_input recording into text.
-
-    Primary:
-        faster-whisper using a real temporary audio file.
-
-    Fallback:
-        SpeechRecognition + Google speech recognition.
-
-    IMPORTANT:
-    faster-whisper is given a file path, not BytesIO. This avoids the
-    common situation where the UI stays on "Transcribing..." because
-    the Whisper decoder cannot open the browser-recorded bytes directly.
-    """
-    if audio_file is None:
-        return ""
-
-    audio_bytes = audio_file.getvalue()
-    if not audio_bytes:
-        st.session_state.voice_status = "No audio was captured."
-        return ""
-
-    temp_path = None
-
-    # ------------------------------------------------------------
-    # METHOD 1: faster-whisper
-    # ------------------------------------------------------------
-    try:
-        from faster_whisper import WhisperModel
-
-        if "whisper_model" not in st.session_state:
-            model_name = os.getenv("WHISPER_MODEL", "base.en")
-            compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
-            device = os.getenv("WHISPER_DEVICE", "cpu")
-
-            st.session_state.voice_status = (
-                f"Loading speech model ({model_name}) for the first time..."
-            )
-
-            st.session_state.whisper_model = WhisperModel(
-                model_name,
-                device=device,
-                compute_type=compute_type,
-            )
-
-        # Write the browser recording to a real file.
-        suffix = _audio_suffix(audio_file)
-
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=suffix,
-        ) as tmp:
-            tmp.write(audio_bytes)
-            tmp.flush()
-            temp_path = tmp.name
-
-        segments, info = st.session_state.whisper_model.transcribe(
-            temp_path,
-            beam_size=5,
-            vad_filter=True,
-            language="en",
-            condition_on_previous_text=False,
-        )
-
-        transcript_parts = []
-
-        for segment in segments:
-            piece = segment.text.strip()
-            if piece:
-                transcript_parts.append(piece)
-
-        transcript = " ".join(transcript_parts).strip()
-
-        if transcript:
-            st.session_state.voice_status = (
-                f"Voice transcription completed • "
-                f"{len(transcript.split())} words"
-            )
-            return transcript
-
-        raise RuntimeError("Whisper returned no speech text.")
-
-    except Exception as whisper_error:
-        # Continue to the fallback recognizer.
-        st.session_state.voice_status = (
-            "Whisper could not transcribe the recording. "
-            "Trying the backup speech recognizer..."
-        )
-
-    finally:
-        if temp_path:
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
-
-    # ------------------------------------------------------------
-    # METHOD 2: SpeechRecognition fallback
-    # ------------------------------------------------------------
-    try:
-        import speech_recognition as sr
-
-        recognizer = sr.Recognizer()
-        recognizer.energy_threshold = 250
-        recognizer.dynamic_energy_threshold = True
-        recognizer.pause_threshold = 0.8
-
-        # Streamlit audio_input normally produces WAV audio. Use the
-        # original bytes directly for the fallback.
-        with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
-            audio_data = recognizer.record(source)
-
-        transcript = recognizer.recognize_google(
-            audio_data,
-            language="en-IN",
-        ).strip()
-
-        if transcript:
-            st.session_state.voice_status = (
-                f"Voice transcription completed • "
-                f"{len(transcript.split())} words"
-            )
-            return transcript
-
-        raise RuntimeError("Backup recognizer returned empty text.")
-
-    except Exception as fallback_error:
-        st.session_state.voice_status = (
-            "Could not transcribe this recording. "
-            "Make sure faster-whisper is installed and try recording "
-            "again with clear speech."
-        )
-        return ""
-
-
-# ============================================================
-# BUILT-IN FALLBACK AI
-# ============================================================
-
-def mock_ai(argument):
-    templates = [
-        (
-            "That argument assumes that the benefit automatically outweighs "
-            "the potential risks. That connection needs stronger justification.",
-            "A stronger position considers both the immediate benefit and the "
-            "long-term consequences before reaching a conclusion.",
-        ),
-        (
-            "Your point is reasonable, but it does not fully address the "
-            "opposing concern. Explain why the alternative would be less effective.",
-            "The issue requires stronger safeguards rather than accepting the "
-            "change without conditions.",
-        ),
-        (
-            "The main weakness is the jump from one observation to a broader "
-            "conclusion. One example is not enough to establish a general rule.",
-            "A convincing position should connect the claim to a clear reason "
-            "and explain why that reasoning applies more broadly.",
-        ),
-    ]
-
-    counter, ai_point = random.choice(templates)
-
-    scores = {
-        "response": random.randint(6, 9),
-        "relevance": random.randint(7, 10),
-        "reasoning": random.randint(6, 9),
-        "evidence": random.randint(5, 8),
-        "fairness": random.randint(7, 10),
-    }
-
-    fallacy_detected = random.choice([False, False, True])
-
-    return {
-        "counterargument": counter,
-        "ai_point": ai_point,
-        "scores": scores,
-        "possible_fallacy": {
-            "detected": fallacy_detected,
-            "type": "Hasty Generalization" if fallacy_detected else "",
-            "evidence": argument[:120] if fallacy_detected else "",
-        },
-        "coaching_note": (
-            "Support your main claim with a specific example, fact, "
-            "statistic, observation, or clear cause-and-effect explanation."
-        ),
-        "better_argument": (
-            "Your claim can be strengthened by directly answering the "
-            "opposing point, explaining the reasoning step by step, and "
-            "adding a concrete example or verifiable evidence."
-        ),
-    }
-
-
-# ============================================================
-# OLLAMA AI
-# ============================================================
-
-def ollama_ai(argument):
-    prompt = f"""
-You are DebateAI, a professional debate opponent and debate coach.
-
-DEBATE TOPIC:
-{st.session_state.topic}
-
-USER SIDE:
-{st.session_state.user_side}
-
-AI SIDE:
-{st.session_state.ai_side}
-
-ROUND:
-{st.session_state.round + 1}
-
-USER'S ARGUMENT:
-{argument}
-
-Your job is to debate against the user AND evaluate their argument.
-
-You MUST stay on your assigned side.
-Do NOT simply agree with the user.
-
-First directly counter the user's argument.
-Then give your own strong argument supporting your side.
-Then evaluate the user's argument.
-
-Return ONLY valid JSON using exactly this structure:
-
-{{
-    "counterargument": "Direct response to the user's argument.",
-    "ai_point": "A strong argument supporting the AI's position.",
-    "scores": {{
-        "response": 0,
-        "relevance": 0,
-        "reasoning": 0,
-        "evidence": 0,
-        "fairness": 0
-    }},
-    "possible_fallacy": {{
-        "detected": false,
-        "type": "",
-        "evidence": ""
-    }},
-    "coaching_note": "Specific advice for improving the user's argument.",
-    "better_argument": "Rewrite the user's argument in a stronger way."
-}}
-
-Give every score from 0 to 10.
-
-Do not invent statistics or facts.
-If you detect a logical fallacy, mark it only as a POSSIBLE fallacy.
-"""
+def call_ollama(prompt):
 
     response = requests.post(
-        "http://localhost:11434/api/generate",
+
+        OLLAMA_URL,
+
         json={
-            "model": "llama3.2:3b",
+
+            "model": OLLAMA_MODEL,
+
             "prompt": prompt,
+
             "stream": False,
+
             "format": "json",
+
         },
+
         timeout=120,
+
     )
 
     response.raise_for_status()
 
     data = response.json()
-    result = json.loads(data["response"])
 
-    required = {
-        "counterargument",
-        "ai_point",
-        "scores",
-        "possible_fallacy",
-        "coaching_note",
-        "better_argument",
+    return data.get(
+        "response",
+        ""
+    ).strip()
+
+
+# ============================================================
+# JSON PARSER
+# ============================================================
+
+def parse_json(text):
+
+    text = text.replace(
+        "```json",
+        ""
+    )
+
+    text = text.replace(
+        "```",
+        ""
+    )
+
+    text = text.strip()
+
+    start = text.find("{")
+
+    end = text.rfind("}")
+
+    if start != -1 and end != -1:
+
+        text = text[start:end + 1]
+
+    return json.loads(text)
+
+
+# ============================================================
+# AI TOPIC GENERATION
+# ============================================================
+
+def generate_topic():
+
+    prompt = """
+You are generating a formal debate resolution.
+
+Create ONE fresh and balanced debate topic.
+
+The topic must:
+
+- have strong arguments on both sides
+- be suitable for college students
+- encourage real disagreement
+- be interesting enough for a live debate
+- avoid extremely obvious topics
+- avoid requiring specialist knowledge
+
+Return JSON only.
+
+Format:
+
+{
+    "topic": "..."
+}
+"""
+
+    try:
+
+        raw = call_ollama(prompt)
+
+        data = parse_json(raw)
+
+        topic = data.get(
+            "topic",
+            ""
+        ).strip()
+
+        if topic:
+
+            return topic
+
+    except Exception:
+
+        pass
+
+    return random.choice(TOPICS)
+
+
+# ============================================================
+# FALLBACK
+# ============================================================
+
+def fallback_debate(argument):
+
+    return {
+
+        "rebuttal":
+            "I understand the point you're making, but I don't think it fully answers the central issue. Your argument assumes that the benefit you described will outweigh the wider consequences, and that assumption needs stronger justification. If we are going to defend this position seriously, we also have to address what happens when the situation doesn't go as expected.",
+
+        "bot_point":
+            "There is another side to this question that deserves attention: the long-term consequences. A decision may appear beneficial in the short term, while creating costs or risks that become visible only later.",
+
+        "score": 6,
+
+        "score_reason":
+            "Your argument is relevant and understandable, but it would be stronger with clearer reasoning and specific supporting evidence.",
+
     }
 
-    if not required.issubset(result):
-        raise ValueError("Ollama returned incomplete debate JSON.")
 
-    # Normalize score values.
-    for key in ["response", "relevance", "reasoning", "evidence", "fairness"]:
-        result["scores"][key] = max(
-            0,
-            min(10, float(result["scores"].get(key, 0))),
+# ============================================================
+# HUMAN-LIKE DEBATE AI
+# ============================================================
+
+def debate_ai(argument):
+
+    topic = st.session_state.topic
+
+    user_side = st.session_state.user_side
+
+    ai_side = st.session_state.ai_side
+
+    current_round = st.session_state.round + 1
+
+
+    history_text = ""
+
+
+    for item in st.session_state.history:
+
+        history_text += f"""
+
+ROUND {item['round']}
+
+USER:
+{item['argument']}
+
+CHAMBER REBUTTAL:
+{item['result'].get('rebuttal', '')}
+
+CHAMBER POINT:
+{item['result'].get('bot_point', '')}
+
+SCORE:
+{item['result'].get('score', 0)}/10
+
+"""
+
+
+    prompt = f"""
+You are participating in a REALISTIC FORMAL HUMAN DEBATE.
+
+You are "The Chamber".
+
+You are NOT a robotic assistant.
+
+You are the user's OPPONENT.
+
+==================================================
+DEBATE
+==================================================
+
+RESOLUTION:
+{topic}
+
+USER SIDE:
+{user_side}
+
+YOUR SIDE:
+{ai_side}
+
+CURRENT ROUND:
+{current_round}
+
+==================================================
+PREVIOUS DEBATE
+==================================================
+
+{history_text if history_text else "(This is the opening round.)"}
+
+==================================================
+USER'S LATEST ARGUMENT
+==================================================
+
+{argument}
+
+==================================================
+YOUR PERSONALITY
+==================================================
+
+Speak like a highly skilled HUMAN debater standing across
+the table from another person.
+
+You should feel:
+
+- confident
+- intelligent
+- emotionally engaged
+- competitive
+- spontaneous
+- persuasive
+- respectful
+- occasionally challenging
+- natural rather than robotic
+
+You are allowed to sound passionate.
+
+You may say things like:
+
+"I disagree with that premise."
+
+"But here's the problem with that argument."
+
+"That's a fair concern, but..."
+
+"I don't think that follows."
+
+"Let me challenge that for a moment."
+
+"Even if we accept your point, we still have another problem."
+
+"That's exactly where I think your argument becomes weak."
+
+"But wouldn't that also mean...?"
+
+"Let's look at this from the perspective of an ordinary person."
+
+Use natural debate language.
+
+DO NOT sound like an AI textbook.
+
+DO NOT start every answer with:
+"Your argument..."
+"While I understand..."
+"According to..."
+
+Vary your openings naturally.
+
+React specifically to what the user ACTUALLY said.
+
+If the user makes a strong point, acknowledge it briefly,
+but then challenge it.
+
+If the user makes a weak point, directly expose the weakness.
+
+If the user uses an assumption, question it.
+
+If the user contradicts an earlier argument, point that out.
+
+If the user gives an example, engage with that example.
+
+If the user uses emotional reasoning, respond to the human
+impact while still making a logical counterargument.
+
+Use everyday human examples when useful.
+
+You can use rhetorical questions.
+
+You can use short emphatic sentences.
+
+Example style:
+
+"Yes, that sounds convincing at first. But there's a problem:
+who actually pays the price when that system fails?"
+
+OR
+
+"I'll concede one thing — your example is valid. But it doesn't
+prove the larger claim you're making."
+
+OR
+
+"I strongly disagree here. If we accept your reasoning,
+where exactly do we draw the line?"
+
+Do NOT insult the user.
+
+Do NOT use abusive language.
+
+Do NOT become aggressive personally.
+
+Attack the ARGUMENT, not the PERSON.
+
+==================================================
+IMPORTANT DEBATE RULE
+==================================================
+
+You MUST defend:
+
+{ai_side}
+
+You must NEVER switch sides.
+
+You must NEVER simply agree with the user.
+
+You must actually FIGHT the user's argument intellectually.
+
+Every response should move the debate forward.
+
+Do not repeat arguments from previous rounds.
+
+==================================================
+REBUTTAL
+==================================================
+
+Write a natural human-style rebuttal.
+
+Length:
+4-7 sentences.
+
+Requirements:
+
+- directly address the latest user argument
+- identify the strongest weakness or assumption
+- provide counter-reasoning
+- sound like spoken debate
+- show some emotional engagement
+- remain respectful
+- do not use unnecessary formal academic language
+
+==================================================
+YOUR OWN ARGUMENT
+==================================================
+
+Then introduce ONE NEW argument supporting:
+
+{ai_side}
+
+Length:
+3-5 sentences.
+
+It must be different from previous Chamber arguments.
+
+It should sound like something a human debater would bring up
+during a live debate.
+
+==================================================
+SCORING
+==================================================
+
+Score the user's latest argument from 1 to 10.
+
+Judge:
+
+- logical strength
+- relevance
+- clarity
+- evidence
+- response to the opposing side
+- persuasiveness
+
+Do NOT automatically give high scores.
+
+If the argument is weak, give a low score.
+
+If it is genuinely strong, give a high score.
+
+==================================================
+SCORE REASON
+==================================================
+
+Write one short natural sentence.
+
+Mention something specific about the user's argument.
+
+==================================================
+OUTPUT
+==================================================
+
+Return ONLY valid JSON.
+
+Format:
+
+{{
+    "rebuttal": "...",
+    "bot_point": "...",
+    "score": 7,
+    "score_reason": "..."
+}}
+"""
+
+
+    try:
+
+        raw = call_ollama(prompt)
+
+        data = parse_json(raw)
+
+        data["score"] = max(
+
+            1,
+
+            min(
+
+                10,
+
+                int(
+                    float(
+                        data.get(
+                            "score",
+                            5
+                        )
+                    )
+                )
+
+            )
+
         )
 
-    return result
+        return data
 
-
-def get_ai_response(argument):
-    try:
-        return ollama_ai(argument)
     except Exception:
-        return mock_ai(argument)
+
+        return fallback_debate(argument)
 
 
 # ============================================================
-# START / RESET
+# VOICE
 # ============================================================
 
-def start_debate():
-    if not st.session_state.topic.strip():
-        st.error("Please choose or enter a topic.")
-        return
+def audio_suffix(audio):
 
-    if not st.session_state.user_side:
-        st.error("Please choose FOR or AGAINST.")
-        return
+    mime = getattr(
+        audio,
+        "type",
+        ""
+    ) or ""
 
-    st.session_state.ai_side = (
-        "AGAINST"
-        if st.session_state.user_side == "FOR"
-        else "FOR"
+    if "webm" in mime:
+
+        return ".webm"
+
+    if "ogg" in mime:
+
+        return ".ogg"
+
+    if "mp4" in mime or "m4a" in mime:
+
+        return ".m4a"
+
+    return ".wav"
+
+
+def transcribe_audio(audio):
+
+    if audio is None:
+
+        return ""
+
+    audio_bytes = audio.getvalue()
+
+    if not audio_bytes:
+
+        return ""
+
+    temp_path = None
+
+
+    try:
+
+        from faster_whisper import WhisperModel
+
+
+        if "whisper_model" not in st.session_state:
+
+            model_name = os.getenv(
+                "WHISPER_MODEL",
+                "base.en"
+            )
+
+            st.session_state.voice_status = (
+                f"Loading voice model: {model_name}..."
+            )
+
+            st.session_state.whisper_model = WhisperModel(
+
+                model_name,
+
+                device="cpu",
+
+                compute_type="int8",
+
+            )
+
+
+        suffix = audio_suffix(audio)
+
+
+        with tempfile.NamedTemporaryFile(
+
+            delete=False,
+
+            suffix=suffix
+
+        ) as tmp:
+
+            tmp.write(audio_bytes)
+
+            tmp.flush()
+
+            temp_path = tmp.name
+
+
+        segments, info = (
+
+            st.session_state.whisper_model.transcribe(
+
+                temp_path,
+
+                beam_size=5,
+
+                vad_filter=True,
+
+                language="en",
+
+                condition_on_previous_text=False,
+
+            )
+
+        )
+
+
+        parts = []
+
+
+        for segment in segments:
+
+            text = segment.text.strip()
+
+            if text:
+
+                parts.append(text)
+
+
+        transcript = " ".join(parts).strip()
+
+
+        if transcript:
+
+            st.session_state.voice_status = (
+
+                f"Voice transcription completed · "
+                f"{len(transcript.split())} words"
+            )
+
+            return transcript
+
+
+    except Exception:
+
+        pass
+
+
+    finally:
+
+        if temp_path:
+
+            try:
+
+                os.remove(temp_path)
+
+            except OSError:
+
+                pass
+
+
+    # Backup recognizer
+
+    try:
+
+        import speech_recognition as sr
+
+        recognizer = sr.Recognizer()
+
+
+        with sr.AudioFile(
+
+            io.BytesIO(audio_bytes)
+
+        ) as source:
+
+            audio_data = recognizer.record(
+                source
+            )
+
+
+        transcript = recognizer.recognize_google(
+
+            audio_data,
+
+            language="en-IN",
+
+        ).strip()
+
+
+        if transcript:
+
+            st.session_state.voice_status = (
+
+                f"Voice transcription completed · "
+                f"{len(transcript.split())} words"
+            )
+
+            return transcript
+
+
+    except Exception:
+
+        pass
+
+
+    st.session_state.voice_status = (
+
+        "Could not transcribe the recording. "
+        "Try speaking clearly and recording again."
     )
 
-    st.session_state.round = 0
-    st.session_state.history = []
-    st.session_state.scores = []
-    st.session_state.voice_text = ""
-    st.session_state.voice_status = ""
-    st.session_state.last_audio_hash = ""
-    st.session_state.argument_editor_version += 1
-    st.session_state.screen = "debate"
+    return ""
 
-    st.rerun()
 
+# ============================================================
+# FINAL REPORT
+# ============================================================
+
+def generate_final_report():
+
+    transcript = ""
+
+
+    for item in st.session_state.history:
+
+        transcript += f"""
+
+ROUND {item['round']}
+
+USER ARGUMENT:
+{item['argument']}
+
+SCORE:
+{item['result'].get('score', 0)}/10
+
+SCORE REASON:
+{item['result'].get('score_reason', '')}
+
+AI REBUTTAL:
+{item['result'].get('rebuttal', '')}
+
+AI POINT:
+{item['result'].get('bot_point', '')}
+
+"""
+
+
+    prompt = f"""
+You are an expert human debate coach.
+
+Review this COMPLETE debate.
+
+TOPIC:
+{st.session_state.topic}
+
+USER POSITION:
+{st.session_state.user_side}
+
+COMPLETE TRANSCRIPT:
+{transcript}
+
+Return ONLY JSON.
+
+Format:
+
+{{
+    "overview": "3-5 sentences describing the user's overall performance.",
+
+    "corrections": [
+        {{
+            "round": 1,
+            "correction": "Specific correction for this round."
+        }}
+    ]
+}}
+
+Rules:
+
+- Include exactly one correction for every round.
+- Reference the actual argument made by the user.
+- Identify specific weaknesses.
+- Explain how the argument could be stronger.
+- Do not invent facts.
+- Be constructive.
+- Do not simply repeat the score.
+"""
+
+
+    try:
+
+        raw = call_ollama(prompt)
+
+        return parse_json(raw)
+
+
+    except Exception:
+
+        return {
+
+            "overview":
+                "The debate has been completed. Your arguments remained connected to the resolution, but several points could be strengthened with clearer reasoning, direct responses and concrete evidence.",
+
+            "corrections": [
+
+                {
+
+                    "round": item["round"],
+
+                    "correction":
+                        item["result"].get(
+
+                            "score_reason",
+
+                            "Develop the claim with clearer reasoning and supporting evidence."
+
+                        )
+
+                }
+
+                for item in st.session_state.history
+
+            ],
+
+        }
+
+
+# ============================================================
+# RESET
+# ============================================================
 
 def reset_app():
+
     for key, value in DEFAULTS.items():
+
         st.session_state[key] = value
+
     st.rerun()
 
 
 # ============================================================
-# SETUP SCREEN
+# SCREEN 1 — TOPIC
 # ============================================================
 
-def setup_screen():
-    brand()
+def topic_screen():
 
-    render_html(
-        """
-        <div class="hero">
-            <h1>Enter the arena.<br><span>Make your argument.</span></h1>
-            <p>
-                A debate partner that challenges your reasoning,
-                scores your arguments and helps you improve.
-            </p>
-        </div>
-        """
+    chamber_brand()
+
+    st.title(
+        "What shall we resolve tonight?"
     )
 
-    render_html(
+
+    st.markdown(
         """
-        <div style="text-align:center;margin:0 0 26px;">
-            <span class="pill pill-purple">01 TOPIC</span>
-            <span style="color:#555;">→</span>
-            <span class="pill pill-muted">02 POSITION</span>
-            <span style="color:#555;">→</span>
-            <span class="pill pill-muted">03 DEBATE</span>
+        <div class="lede">
+        Bring your own resolution, or let the Chamber propose one.
+        Either way, you'll argue one side and the Chamber will argue the other.
         </div>
-        """
+        """,
+        unsafe_allow_html=True,
     )
 
-    render_html(
-        """
-        <div class="card">
-            <div class="card-title">What are we debating?</div>
-            <div class="card-sub">
-                Bring your own topic or let DebateAI surprise you.
-            </div>
-        </div>
-        """
+
+    st.markdown(
+        '<div class="section-label">STEP 1 — THE RESOLUTION</div>',
+        unsafe_allow_html=True
     )
+
+
+    # ========================================================
+    # IMPORTANT:
+    # The visible large boxes are NOW the actual buttons.
+    # There are NO decorative cards below them.
+    # ========================================================
 
     c1, c2 = st.columns(2)
 
+
     with c1:
-        if st.button("✦  I have a topic", use_container_width=True):
-            st.session_state.topic_mode = "custom"
-            st.session_state.topic = ""
-
-    with c2:
-        if st.button("✦  Give me a topic", use_container_width=True):
-            st.session_state.topic_mode = "random"
-            st.session_state.topic = random.choice(TOPICS)
-
-    if st.session_state.topic_mode == "custom":
-        topic = st.text_input(
-            "Your topic",
-            placeholder="e.g. Should AI-generated content be regulated?",
-        )
-        if topic.strip():
-            st.session_state.topic = topic.strip()
-
-    elif st.session_state.topic_mode == "random":
-        render_html(
-            f"""
-            <div class="topic-box">
-                <div class="topic-label">Your debate topic</div>
-                <div class="topic-text">
-                    {html.escape(st.session_state.topic)}
-                </div>
-            </div>
-            """
-        )
-
-        if st.button("↻ Generate another", use_container_width=True):
-            st.session_state.topic = random.choice(TOPICS)
-            st.rerun()
-
-    if st.session_state.topic:
-        render_html(
-            """
-            <div style="height:4px;"></div>
-            <div class="card">
-                <div class="card-title">Choose your position</div>
-                <div class="card-sub">
-                    DebateAI will automatically argue the opposite side.
-                </div>
-            </div>
-            """
-        )
-
-        p1, p2 = st.columns(2)
-
-        with p1:
-            if st.button("✓  FOR", use_container_width=True):
-                st.session_state.user_side = "FOR"
-
-            render_html(
-                """
-                <div class="card side-for">
-                    <div style="font-size:21px;">✓</div>
-                    <b>FOR</b>
-                    <div class="card-sub">Support the motion.</div>
-                </div>
-                """
-            )
-
-        with p2:
-            if st.button("✕  AGAINST", use_container_width=True):
-                st.session_state.user_side = "AGAINST"
-
-            render_html(
-                """
-                <div class="card side-against">
-                    <div style="font-size:21px;">✕</div>
-                    <b>AGAINST</b>
-                    <div class="card-sub">Challenge the motion.</div>
-                </div>
-                """
-            )
-
-    if st.session_state.user_side:
-        ai_side = (
-            "AGAINST"
-            if st.session_state.user_side == "FOR"
-            else "FOR"
-        )
-
-        render_html(
-            f"""
-            <div class="card">
-                <div>
-                    <span class="pill pill-green">
-                        YOU · {html.escape(st.session_state.user_side)}
-                    </span>
-                    <span class="pill pill-red">
-                        AI · {html.escape(ai_side)}
-                    </span>
-                </div>
-                <div style="margin-top:14px;color:#8b8d98;font-size:13px;">
-                    Your position is locked for the entire debate.
-                    Make your opening argument when you're ready.
-                </div>
-            </div>
-            """
-        )
 
         if st.button(
-            "Start the debate  →",
+
+            "I'll give the topic\n\nType your own resolution",
+
             use_container_width=True,
-            type="primary",
+
+            key="topic_own",
+
         ):
-            start_debate()
+
+            st.session_state.topic_mode = "own"
+
+            st.session_state.topic = ""
+
+            st.rerun()
+
+
+    with c2:
+
+        if st.button(
+
+            "Let the Chamber pick\n\nAI generates the resolution",
+
+            use_container_width=True,
+
+            key="topic_ai",
+
+        ):
+
+            st.session_state.topic_mode = "auto"
+
+            with st.spinner(
+                "The Chamber is choosing a topic..."
+            ):
+
+                st.session_state.topic = (
+                    generate_topic()
+                )
+
+            st.rerun()
+
+
+    # ========================================================
+    # USER TOPIC
+    # ========================================================
+
+    if st.session_state.topic_mode == "own":
+
+        st.markdown(
+            '<div class="section-label">YOUR RESOLUTION</div>',
+            unsafe_allow_html=True
+        )
+
+
+        topic = st.text_input(
+
+            "Topic",
+
+            placeholder=
+                "e.g. Social media does more harm than good",
+
+            label_visibility="collapsed",
+
+            max_chars=160,
+
+        )
+
+
+        if topic.strip():
+
+            st.session_state.topic = topic.strip()
+
+
+    # ========================================================
+    # AI TOPIC
+    # ========================================================
+
+    elif st.session_state.topic_mode == "auto":
+
+        render_html(
+
+            f"""
+            <div class="topic-plaque">
+
+                <div class="topic-eyebrow">
+                    Proposed resolution
+                </div>
+
+                <div class="topic-resolution">
+                    {html.escape(st.session_state.topic)}
+                </div>
+
+            </div>
+            """
+
+        )
+
+
+        if st.button(
+
+            "🎲 Generate another topic",
+
+            use_container_width=True,
+
+        ):
+
+            with st.spinner(
+                "Thinking of another resolution..."
+            ):
+
+                st.session_state.topic = (
+                    generate_topic()
+                )
+
+            st.rerun()
+
+
+    # ========================================================
+    # ROUNDS
+    # ========================================================
+
+    if st.session_state.topic:
+
+        st.markdown(
+            '<div class="section-label">NUMBER OF ROUNDS</div>',
+            unsafe_allow_html=True
+        )
+
+
+        round_cols = st.columns(3)
+
+
+        for col, number in zip(
+
+            round_cols,
+
+            [3, 4, 5]
+
+        ):
+
+            with col:
+
+                selected = (
+                    st.session_state.max_rounds == number
+                )
+
+
+                label = (
+                    f"✓  {number} ROUNDS"
+                    if selected
+                    else f"{number} ROUNDS"
+                )
+
+
+                if st.button(
+
+                    label,
+
+                    use_container_width=True,
+
+                    type=
+                        "primary"
+                        if selected
+                        else "secondary",
+
+                    key=f"round_select_{number}",
+
+                ):
+
+                    st.session_state.max_rounds = number
+
+                    st.rerun()
+
+
+        st.markdown(
+            "<br>",
+            unsafe_allow_html=True
+        )
+
+
+        if st.button(
+
+            "Continue →",
+
+            use_container_width=True,
+
+            type="primary",
+
+            key="continue_topic",
+
+        ):
+
+            if len(
+                st.session_state.topic.strip()
+            ) < 6:
+
+                st.error(
+                    "Please enter a meaningful topic."
+                )
+
+            else:
+
+                st.session_state.screen = "stance"
+
+                st.rerun()
+
 
     render_html(
         """
-        <div class="footer">
-            DebateAI · Think sharper. Argue better.
+        <div class="chamber-footer">
+            DebateAI · arguments and feedback generated locally by Ollama
         </div>
         """
     )
 
 
 # ============================================================
-# DEBATE HEADER
+# SCREEN 2 — STANCE
 # ============================================================
 
-def debate_header():
-    progress = (
-        st.session_state.round / st.session_state.max_rounds * 100
-        if st.session_state.max_rounds
-        else 0
+def stance_screen():
+
+    chamber_brand()
+
+
+    st.title(
+        "Choose your side"
     )
 
-    render_html(
-        f"""
-        <div style="
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            gap:15px;
-            margin-bottom:12px;
-        ">
-            <div>
-                <div style="
-                    font-family:'Space Grotesk',sans-serif;
-                    font-size:24px;
-                    font-weight:700;
-                ">
-                    Debate Arena
-                </div>
-                <div style="color:#777985;font-size:12px;">
-                    Round {st.session_state.round}
-                    of {st.session_state.max_rounds}
-                </div>
-            </div>
 
-            <div>
-                <span class="pill pill-green">
-                    YOU · {html.escape(st.session_state.user_side or '')}
-                </span>
-                <span class="pill pill-red">
-                    AI · {html.escape(st.session_state.ai_side or '')}
-                </span>
-            </div>
-        </div>
-
-        <div class="progress-wrap">
-            <div class="progress" style="width:{progress:.1f}%;"></div>
-        </div>
+    st.markdown(
         """
+        <div class="lede">
+        The Chamber will argue whichever side you don't.
+        Your position stays locked for the entire debate.
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
+
     render_html(
+
         f"""
-        <div class="topic-box">
-            <div class="topic-label">Motion</div>
-            <div class="topic-text">
+        <div class="topic-plaque">
+
+            <div class="topic-eyebrow">
+                Resolved
+            </div>
+
+            <div class="topic-resolution">
                 {html.escape(st.session_state.topic)}
             </div>
+
         </div>
         """
+
+    )
+
+
+    st.markdown(
+        '<div class="section-label">YOUR POSITION</div>',
+        unsafe_allow_html=True
+    )
+
+
+    # ========================================================
+    # BIG CLICKABLE FOR / AGAINST BUTTONS
+    # ========================================================
+
+    c1, c2 = st.columns(2)
+
+
+    with c1:
+
+        if st.button(
+
+            "FOR\n\nArgue in favor",
+
+            use_container_width=True,
+
+            key="stance_for",
+
+        ):
+
+            st.session_state.user_side = "FOR"
+
+            st.session_state.ai_side = "AGAINST"
+
+            st.session_state.round = 1
+
+            st.session_state.history = []
+
+            st.session_state.scores = []
+
+            st.session_state.final_report = None
+
+            st.session_state.screen = "debate"
+
+            st.rerun()
+
+
+    with c2:
+
+        if st.button(
+
+            "AGAINST\n\nArgue in opposition",
+
+            use_container_width=True,
+
+            key="stance_against",
+
+        ):
+
+            st.session_state.user_side = "AGAINST"
+
+            st.session_state.ai_side = "FOR"
+
+            st.session_state.round = 1
+
+            st.session_state.history = []
+
+            st.session_state.scores = []
+
+            st.session_state.final_report = None
+
+            st.session_state.screen = "debate"
+
+            st.rerun()
+
+
+    st.markdown(
+        "<br>",
+        unsafe_allow_html=True
+    )
+
+
+    if st.button(
+
+        "← Back",
+
+        use_container_width=True,
+
+        key="back_to_topic",
+
+    ):
+
+        st.session_state.screen = "topic"
+
+        st.rerun()
+
+
+# ============================================================
+# ROUND TRACKER
+# ============================================================
+
+def render_round_tracker():
+
+    dots = ""
+
+
+    for i in range(
+
+        1,
+
+        st.session_state.max_rounds + 1
+
+    ):
+
+        if i < st.session_state.round:
+
+            cls = "done"
+
+        elif i == st.session_state.round:
+
+            cls = "now"
+
+        else:
+
+            cls = ""
+
+
+        dots += (
+            f'<div class="round-dot {cls}"></div>'
+        )
+
+
+    render_html(
+
+        f"""
+        <div class="round-tracker">
+
+            {dots}
+
+            <span class="round-number">
+
+                ROUND {st.session_state.round}
+                /
+                {st.session_state.max_rounds}
+
+            </span>
+
+        </div>
+        """
+
     )
 
 
 # ============================================================
-# SCORE ROW
+# SCORE DIAL
 # ============================================================
 
-def score_row(scores):
-    safe_scores = {
-        key: float(scores.get(key, 0))
-        for key in ["response", "relevance", "reasoning", "evidence", "fairness"]
-    }
+def score_dial(score):
 
-    avg = sum(safe_scores.values()) / len(safe_scores)
+    score = float(score)
 
-    items = [
-        ("Overall", avg),
-        ("Response", safe_scores["response"]),
-        ("Relevance", safe_scores["relevance"]),
-        ("Reasoning", safe_scores["reasoning"]),
-        ("Evidence", safe_scores["evidence"]),
-        ("Fairness", safe_scores["fairness"]),
-    ]
+    radius = 26
 
-    cols = st.columns(6)
+    circumference = (
+        2 * 3.14159 * radius
+    )
 
-    for col, (label, value) in zip(cols, items):
-        with col:
-            render_html(
-                f"""
-                <div class="score-card">
-                    <div class="score-number">{value:.1f}</div>
-                    <div class="score-label">{html.escape(label)}</div>
-                </div>
-                """
-            )
+    offset = circumference - (
+        score / 10
+    ) * circumference
+
+
+    return f"""
+
+    <div class="score-dial">
+
+        <svg
+            width="68"
+            height="68"
+            viewBox="0 0 68 68"
+        >
+
+            <circle
+                class="score-track"
+                cx="34"
+                cy="34"
+                r="{radius}"
+            />
+
+            <circle
+                class="score-fill"
+                cx="34"
+                cy="34"
+                r="{radius}"
+                stroke-dasharray="{circumference}"
+                stroke-dashoffset="{offset}"
+            />
+
+        </svg>
+
+
+        <div class="score-number">
+            {int(score)}
+        </div>
+
+    </div>
+
+    """
 
 
 # ============================================================
-# TRANSCRIPT ITEM
+# TRANSCRIPT
 # ============================================================
 
-def render_transcript_item(item):
+def render_round(item):
+
     result = item["result"]
 
-    render_html(
-        f"""
-        <div class="message">
-            <div class="avatar avatar-you">Y</div>
-            <div class="message-body">
-                <div class="message-name">
-                    YOU · ROUND {item['round']}
-                </div>
-                <div class="message-text">
-                    {html.escape(item['argument'])}
-                </div>
-            </div>
-        </div>
-        """
-    )
+
+    # USER
 
     render_html(
+
         f"""
-        <div class="message">
-            <div class="avatar avatar-ai">AI</div>
-            <div class="message-body">
-                <div class="message-name">
-                    DEBATEAI · {html.escape(st.session_state.ai_side or '')}
-                </div>
+        <div class="bubble bubble-user">
 
-                <div class="ai-response">
-                    <div class="ai-label">COUNTERARGUMENT</div>
-                    <div class="message-text">
-                        {html.escape(str(result.get('counterargument', '')))}
-                    </div>
-
-                    <div class="soft-divider"></div>
-
-                    <div class="ai-label blue">AI'S POSITION</div>
-                    <div class="message-text">
-                        {html.escape(str(result.get('ai_point', '')))}
-                    </div>
-                </div>
+            <div class="bubble-label">
+                ✦ Your argument · Round {item['round']}
             </div>
+
+            <div class="bubble-text">
+                {html.escape(item['argument'])}
+            </div>
+
         </div>
         """
+
     )
 
-    score_row(result.get("scores", {}))
 
-    fallacy = result.get("possible_fallacy", {})
+    # AI
 
-    if fallacy.get("detected"):
-        st.warning(
-            "⚠ Possible fallacy detected: "
-            + str(fallacy.get("type", "Possible reasoning issue"))
-        )
-        st.caption(
-            "Evidence: “"
-            + str(fallacy.get("evidence", ""))
-            + "”"
-        )
+    render_html(
 
-    render_html('<div class="soft-divider"></div>')
+        f"""
+        <div class="bubble bubble-ai">
+
+            <div class="bubble-label">
+                ◈ The Chamber responds
+            </div>
+
+            <div class="bubble-text">
+                {html.escape(
+                    str(
+                        result.get(
+                            "rebuttal",
+                            ""
+                        )
+                    )
+                )}
+            </div>
+
+
+            <div class="ai-point">
+
+                <div class="ai-point-label">
+                    ◆ The Chamber's own point
+                    ·
+                    {html.escape(
+                        st.session_state.ai_side
+                    )}
+                </div>
+
+
+                <div class="bubble-text">
+
+                    {html.escape(
+                        str(
+                            result.get(
+                                "bot_point",
+                                ""
+                            )
+                        )
+                    )}
+
+                </div>
+
+            </div>
+
+        </div>
+        """
+
+    )
+
+
+    # SCORE
+
+    score = result.get(
+        "score",
+        0
+    )
+
+
+    reason = result.get(
+        "score_reason",
+        ""
+    )
+
+
+    render_html(
+
+        f"""
+        <div class="score-card">
+
+            {score_dial(score)}
+
+            <div>
+
+                <div class="score-label">
+                    Score for your Round
+                    {item['round']} argument
+                </div>
+
+                <div class="score-reason">
+                    {html.escape(
+                        str(reason)
+                    )}
+                </div>
+
+            </div>
+
+        </div>
+        """
+
+    )
 
 
 # ============================================================
-# DEBATE SCREEN
+# SCREEN 3 — DEBATE
 # ============================================================
 
 def debate_screen():
-    brand()
-    debate_header()
+
+    chamber_brand()
+
+
+    render_html(
+
+        f"""
+        <div class="debate-header">
+
+            <div>
+
+                <div class="debate-resolution">
+                    {html.escape(
+                        st.session_state.topic
+                    )}
+                </div>
+
+                <span class="side-tag
+                    {
+                        'side-for'
+                        if st.session_state.user_side == 'FOR'
+                        else 'side-against'
+                    }">
+
+                    {html.escape(
+                        st.session_state.user_side
+                    )}
+
+                </span>
+
+            </div>
+
+        </div>
+        """
+
+    )
+
+
+    render_round_tracker()
+
+
+    st.markdown(
+        "<br>",
+        unsafe_allow_html=True
+    )
+
+
+    # Existing transcript
 
     for item in st.session_state.history:
-        render_transcript_item(item)
 
-    if st.session_state.round >= st.session_state.max_rounds:
-        st.success("All rounds completed. Your debate report is ready.")
+        render_round(item)
 
-        if st.button("View final report →", use_container_width=True):
+
+    # Finished
+
+    if (
+        st.session_state.round
+        >
+        st.session_state.max_rounds
+    ):
+
+        if st.button(
+
+            "See final verdict →",
+
+            use_container_width=True,
+
+            type="primary",
+
+            key="final_verdict",
+
+        ):
+
             st.session_state.screen = "report"
+
             st.rerun()
 
         return
 
-    render_html(
-        """
-        <div class="card">
-            <div class="card-title">Your turn</div>
-            <div class="card-sub">
-                Respond to the AI's argument. Make your strongest case.
-            </div>
-        </div>
-        """
-    )
+
+    # ========================================================
+    # INPUT CARD
+    # ========================================================
 
     render_html(
-        """
-        <div class="card">
-            <div class="card-title">🎙 Voice-to-text</div>
-            <div class="card-sub">
-                Record your argument. Wait for transcription to finish.
-                The text will automatically appear in the argument box below.
+
+        f"""
+        <div class="input-card">
+
+            <div class="field-label">
+                Your Round
+                {st.session_state.round}
+                argument
             </div>
+
         </div>
         """
+
     )
 
-    # The key is stable during a debate, so Streamlit can keep the
-    # recording widget and the argument editor independent.
+
+    # ========================================================
+    # VOICE
+    # ========================================================
+
     audio = st.audio_input(
-        "🎤 Record your argument",
-        key="voice_recorder",
+
+        "🎙 Record your argument",
+
+        key=f"voice_{st.session_state.round}",
+
     )
+
 
     if audio is not None:
+
         audio_bytes = audio.getvalue()
 
-        if audio_bytes:
-            audio_hash = hashlib.sha256(audio_bytes).hexdigest()
 
-            # Transcribe ONLY when a genuinely new recording is present.
-            # This prevents endless "Transcribing..." loops caused by
-            # Streamlit rerunning the script after every widget change.
-            if audio_hash != st.session_state.last_audio_hash:
-                st.session_state.last_audio_hash = audio_hash
+        if audio_bytes:
+
+            audio_hash = hashlib.sha256(
+                audio_bytes
+            ).hexdigest()
+
+
+            if (
+                audio_hash
+                !=
+                st.session_state.last_audio_hash
+            ):
+
+                st.session_state.last_audio_hash = (
+                    audio_hash
+                )
+
 
                 with st.spinner(
-                    "Transcribing your argument... "
-                    "The first recording may take longer while Whisper loads."
+                    "The Chamber is transcribing your argument..."
                 ):
-                    transcript = transcribe_audio(audio)
+
+                    transcript = (
+                        transcribe_audio(audio)
+                    )
+
 
                 if transcript:
-                    # This state is set before the text_area is created
-                    # during this run, so Streamlit displays the transcript
-                    # in the editor on the next render.
-                    st.session_state.voice_text = transcript
-                    # Do not modify a text-area key after its widget exists.
-                    # Incrementing the version creates a fresh widget key on
-                    # the next rerun, allowing the transcript to appear safely.
-                    st.session_state.argument_editor_version += 1
+
+                    st.session_state.voice_text = (
+                        transcript
+                    )
+
+                    st.session_state.argument_version += 1
+
                     st.rerun()
-                else:
-                    # Force the status to be visible even when no transcript
-                    # was produced.
-                    st.rerun()
+
 
     if st.session_state.voice_status:
+
         render_html(
+
             f"""
-            <div class="status-box">
-                {html.escape(st.session_state.voice_status)}
+            <div class="status">
+
+                {html.escape(
+                    st.session_state.voice_status
+                )}
+
             </div>
             """
+
         )
 
-    # IMPORTANT: never write to a Streamlit widget's session-state key
-    # after the widget has been instantiated. Instead, use a versioned key.
-    # A new version is created after transcription or after submitting a round.
-    argument_key = f"argument_editor_{st.session_state.argument_editor_version}"
 
-    argument = st.text_area(
-        "Your argument",
-        value=st.session_state.voice_text,
-        placeholder=(
-            "Your transcribed argument will appear here...\n\n"
-            "You can edit it before sending."
-        ),
-        label_visibility="collapsed",
-        key=argument_key,
-        height=150,
+    argument_key = (
+        f"argument_{st.session_state.argument_version}"
     )
 
-    c1, c2 = st.columns([3, 1])
+
+    argument = st.text_area(
+
+        "Argument",
+
+        value=st.session_state.voice_text,
+
+        placeholder=(
+            "Make your case...\n\n"
+            "Speak using the microphone "
+            "or type your argument here."
+        ),
+
+        height=130,
+
+        label_visibility="collapsed",
+
+        key=argument_key,
+
+    )
+
+
+    c1, c2 = st.columns([2, 1])
+
 
     with c1:
+
         submit = st.button(
-            "Send argument  →",
+
+            "Submit argument →",
+
             use_container_width=True,
+
             type="primary",
+
+            key="submit_argument",
+
         )
+
 
     with c2:
+
         end = st.button(
+
             "End debate",
+
             use_container_width=True,
+
+            key="end_debate",
+
         )
+
 
     if end:
+
         st.session_state.screen = "report"
+
         st.rerun()
 
+
     if submit:
+
         clean_argument = argument.strip()
 
+
         if not clean_argument:
-            st.warning("Write an argument before sending it.")
+
+            st.warning(
+                "Make an argument before submitting."
+            )
+
             return
 
-        with st.spinner("DebateAI is thinking..."):
-            result = get_ai_response(clean_argument)
 
-        st.session_state.round += 1
+        with st.spinner(
+            "The Chamber is weighing your argument..."
+        ):
 
-        st.session_state.history.append(
-            {
-                "round": st.session_state.round,
-                "argument": clean_argument,
-                "result": result,
-            }
+            result = debate_ai(
+                clean_argument
+            )
+
+
+        completed_round = (
+            st.session_state.round
         )
 
-        st.session_state.scores.append(result.get("scores", {}))
-        st.session_state.voice_text = ""
-        st.session_state.voice_status = ""
-        # Keep last_audio_hash so the same recording is not transcribed
-        # again after Streamlit reruns the page.
-        # Create a fresh text-area key for the next round instead of
-        # modifying the current widget's session-state value.
-        st.session_state.argument_editor_version += 1
 
-        if st.session_state.round >= st.session_state.max_rounds:
+        st.session_state.history.append(
+
+            {
+
+                "round": completed_round,
+
+                "argument": clean_argument,
+
+                "result": result,
+
+            }
+
+        )
+
+
+        st.session_state.scores.append(
+
+            result.get(
+                "score",
+                0
+            )
+
+        )
+
+
+        st.session_state.voice_text = ""
+
+        st.session_state.voice_status = ""
+
+        st.session_state.argument_version += 1
+
+
+        if (
+            completed_round
+            >=
+            st.session_state.max_rounds
+        ):
+
+            st.session_state.round = (
+                st.session_state.max_rounds
+                +
+                1
+            )
+
             st.session_state.screen = "report"
+
+        else:
+
+            st.session_state.round += 1
+
 
         st.rerun()
 
 
 # ============================================================
-# REPORT SCREEN
+# SCREEN 4 — FINAL VERDICT
 # ============================================================
 
 def report_screen():
-    brand()
 
-    render_html(
-        """
-        <div class="hero" style="padding-top:15px;">
-            <div style="
-                color:#8e82ff;
-                font-size:12px;
-                letter-spacing:2px;
-                font-weight:700;
-            ">
-                DEBATE COMPLETE
-            </div>
+    chamber_brand()
 
-            <h1 style="margin-top:12px;">
-                Here's how you <span>did.</span>
-            </h1>
 
-            <p>
-                Your debate has been analysed from the first
-                argument to the final round.
-            </p>
-        </div>
-        """
+    st.title(
+        "The Chamber's verdict"
     )
 
-    all_values = []
 
-    for score in st.session_state.scores:
-        all_values.extend(
-            float(score.get(key, 0))
-            for key in ["response", "relevance", "reasoning", "evidence", "fairness"]
-        )
+    st.markdown(
 
-    overall = (
-        sum(all_values) / len(all_values)
-        if all_values
-        else 0
-    )
-
-    render_html(
         f"""
-        <div class="report-score">
-            <div style="
-                color:#858792;
-                font-size:12px;
-                letter-spacing:2px;
-            ">
-                OVERALL DEBATE SCORE
-            </div>
+        <div class="lede">
 
-            <div class="big-score">{overall:.1f}</div>
+        "{html.escape(
+            st.session_state.topic
+        )}"
 
-            <div style="color:#858792;font-size:13px;">
-                out of 10
-            </div>
+        — you argued
+        {html.escape(
+            st.session_state.user_side
+        )}.
+
         </div>
-        """
+        """,
+
+        unsafe_allow_html=True,
+
     )
 
-    categories = [
-        "response",
-        "relevance",
-        "reasoning",
-        "evidence",
-        "fairness",
+
+    # ========================================================
+    # GENERATE REPORT
+    # ========================================================
+
+    if st.session_state.final_report is None:
+
+        with st.spinner(
+            "The Chamber is reviewing the full debate..."
+        ):
+
+            st.session_state.final_report = (
+                generate_final_report()
+            )
+
+
+    report = (
+        st.session_state.final_report
+    )
+
+
+    # ========================================================
+    # AVERAGE
+    # ========================================================
+
+    scores = [
+
+        float(x)
+
+        for x in st.session_state.scores
+
     ]
 
-    averages = {}
+
+    average = (
+
+        sum(scores) / len(scores)
+
+        if scores
+
+        else 0
+
+    )
+
+
+    render_html(
+
+        f"""
+        <div class="verdict-card">
+
+            <div class="verdict-score">
+
+                {average:.1f}
+
+                <span>/10</span>
+
+            </div>
+
+            <div class="verdict-label">
+                Average round score
+            </div>
+
+            <div class="verdict-overview">
+
+                {html.escape(
+                    str(
+                        report.get(
+                            "overview",
+                            ""
+                        )
+                    )
+                )}
+
+            </div>
+
+        </div>
+        """
+
+    )
+
+
+    # ========================================================
+    # CORRECTIONS
+    # ========================================================
+
+    st.markdown(
+
+        '<div class="section-label">'
+        'ROUND-BY-ROUND CORRECTIONS'
+        '</div>',
+
+        unsafe_allow_html=True
+
+    )
+
+
+    corrections = report.get(
+        "corrections",
+        []
+    )
+
+
+    for correction in corrections:
+
+        round_number = correction.get(
+            "round",
+            1
+        )
+
+
+        text = correction.get(
+            "correction",
+            ""
+        )
+
+
+        round_score = "?"
+
+
+        if (
+
+            round_number > 0
+
+            and
+
+            round_number <= len(
+                st.session_state.history
+            )
+
+        ):
+
+            round_score = (
+                st.session_state.history[
+                    round_number - 1
+                ]["result"].get(
+                    "score",
+                    "?"
+                )
+            )
+
+
+        render_html(
+
+            f"""
+            <div class="correction">
+
+                <div class="correction-head">
+
+                    <span class="round-badge">
+
+                        ROUND
+                        {round_number}
+
+                    </span>
+
+                    <span class="correction-score">
+
+                        scored
+                        {round_score}/10
+
+                    </span>
+
+                </div>
+
+                <p>
+
+                    {html.escape(
+                        str(text)
+                    )}
+
+                </p>
+
+            </div>
+            """
+
+        )
+
+
+    # ========================================================
+    # ROUND SCORES
+    # ========================================================
 
     if st.session_state.scores:
-        for category in categories:
-            values = [
-                float(score.get(category, 0))
-                for score in st.session_state.scores
-            ]
-            averages[category] = sum(values) / len(values)
 
-        render_html(
-            """
-            <div class="report-section">
-                <h3>Performance breakdown</h3>
-            </div>
-            """
+        st.markdown(
+
+            '<div class="section-label">'
+            'ROUND SCORES'
+            '</div>',
+
+            unsafe_allow_html=True
+
         )
 
-        cols = st.columns(5)
 
-        for col, category in zip(cols, categories):
-            with col:
-                value = averages[category]
-                render_html(
-                    f"""
-                    <div class="score-card">
-                        <div class="score-number">{value:.1f}</div>
+        for i, score in enumerate(
+
+            st.session_state.scores,
+
+            start=1
+
+        ):
+
+            render_html(
+
+                f"""
+                <div class="score-card">
+
+                    {score_dial(score)}
+
+                    <div>
+
                         <div class="score-label">
-                            {html.escape(category.title())}
+                            ROUND {i}
                         </div>
+
+                        <div class="score-reason">
+                            Argument strength:
+                            {score}/10
+                        </div>
+
                     </div>
-                    """
-                )
 
-    if averages:
-        strongest = max(averages, key=averages.get)
-        weakest = min(averages, key=averages.get)
+                </div>
+                """
 
-        strength_text = {
-            "response": "You did well at directly engaging with the opposing argument.",
-            "relevance": "Your arguments stayed closely connected to the debate motion.",
-            "reasoning": "Your reasoning was one of the strongest parts of the debate.",
-            "evidence": "You supported your claims comparatively well with justification or examples.",
-            "fairness": "You maintained a relatively fair and respectful debating style.",
-        }[strongest]
+            )
 
-        weakness_text = {
-            "response": "Make your response explicitly answer the AI's strongest point before introducing a new claim.",
-            "relevance": "Avoid points that are interesting but do not directly prove your position on the motion.",
-            "reasoning": "Connect each claim to a clear reason and explain the cause-and-effect relationship.",
-            "evidence": "Add concrete examples, observations, or verifiable evidence instead of relying only on assertions.",
-            "fairness": "Avoid sweeping assumptions or personal attacks and acknowledge reasonable opposing concerns.",
-        }[weakest]
 
-        render_html(
-            f"""
-            <div class="report-section">
-                <h3>✦ What you did well</h3>
-                <p>{html.escape(strength_text)}</p>
-                <p>
-                    Your highest category was
-                    <b>{html.escape(strongest.title())}</b>
-                    at <b>{averages[strongest]:.1f}/10</b>.
-                </p>
-            </div>
-            """
-        )
-
-        render_html(
-            f"""
-            <div class="report-section">
-                <h3>△ What could be stronger</h3>
-                <p>{html.escape(weakness_text)}</p>
-                <p>
-                    Your lowest category was
-                    <b>{html.escape(weakest.title())}</b>
-                    at <b>{averages[weakest]:.1f}/10</b>.
-                </p>
-            </div>
-            """
-        )
-
-    render_html(
-        """
-        <div class="report-section">
-            <h3>✎ Argument corrections</h3>
-            <div style="
-                color:#858792;
-                font-size:13px;
-                margin-bottom:18px;
-            ">
-                Here's how your arguments could have been stronger.
-            </div>
-        """
+    st.markdown(
+        "<br>",
+        unsafe_allow_html=True
     )
 
-    for item in st.session_state.history:
-        result = item["result"]
-        better = result.get(
-            "better_argument",
-            result.get(
-                "coaching_note",
-                "Support this claim with clearer reasoning and evidence.",
-            ),
-        )
-
-        render_html(
-            f"""
-            <div style="
-                padding:15px;
-                background:#0d0e13;
-                border-radius:14px;
-                margin-bottom:12px;
-                border:1px solid #20222c;
-            ">
-                <div style="
-                    color:#8c8e99;
-                    font-size:11px;
-                    margin-bottom:6px;
-                ">
-                    ROUND {item['round']}
-                </div>
-
-                <div style="
-                    font-size:14px;
-                    line-height:1.55;
-                    margin-bottom:12px;
-                ">
-                    “{html.escape(item['argument'])}”
-                </div>
-
-                <div style="
-                    color:#65c6ff;
-                    font-size:12px;
-                    font-weight:600;
-                ">
-                    BETTER APPROACH
-                </div>
-
-                <div style="
-                    color:#b1b2ba;
-                    font-size:13px;
-                    line-height:1.55;
-                    margin-top:5px;
-                ">
-                    {html.escape(str(better))}
-                </div>
-            </div>
-            """
-        )
-
-    render_html(
-        """
-        </div>
-        """
-    )
-
-    render_html(
-        """
-        <div class="report-section">
-            <h3>⚡ Your next move</h3>
-            <p>In your next debate, focus on three things:</p>
-            <p><b>01</b> Make your claim clearly.</p>
-            <p><b>02</b> Support it with evidence or an example.</p>
-            <p><b>03</b> Directly attack the opposing argument.</p>
-        </div>
-        """
-    )
 
     if st.button(
-        "↻  Start a new debate",
+
+        "Start a new debate",
+
         use_container_width=True,
+
+        type="primary",
+
+        key="new_debate",
+
     ):
+
         reset_app()
 
+
     render_html(
+
         """
-        <div class="footer">
-            DebateAI · Think sharper. Argue better.
+        <div class="chamber-footer">
+            The Chamber · DebateAI
         </div>
         """
+
     )
 
 
@@ -1672,11 +3157,21 @@ def report_screen():
 # ROUTER
 # ============================================================
 
-if st.session_state.screen == "setup":
-    setup_screen()
+if st.session_state.screen == "topic":
+
+    topic_screen()
+
+
+elif st.session_state.screen == "stance":
+
+    stance_screen()
+
 
 elif st.session_state.screen == "debate":
+
     debate_screen()
 
+
 elif st.session_state.screen == "report":
+
     report_screen()

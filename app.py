@@ -206,8 +206,6 @@ p {
 
 /* ============================================================
    BIG INTERACTIVE CHOICE BUTTONS
-   IMPORTANT:
-   The entire visible card is now the actual button.
    ============================================================ */
 
 .big-choice-row {
@@ -1242,7 +1240,7 @@ Format:
 
 
 # ============================================================
-# FALLBACK
+# FALLBACK DEBATE RESPONSE
 # ============================================================
 
 def fallback_debate(argument):
@@ -1250,15 +1248,24 @@ def fallback_debate(argument):
     return {
 
         "rebuttal":
-            "I understand the point you're making, but I don't think it fully answers the central issue. Your argument assumes that the benefit you described will outweigh the wider consequences, and that assumption needs stronger justification. If we are going to defend this position seriously, we also have to address what happens when the situation doesn't go as expected.",
+            "I disagree with your argument because it does not fully "
+            "consider the consequences of the position you're defending. "
+            "Even if your point is valid in some situations, it does not "
+            "necessarily prove that your overall position is correct. "
+            "There are practical limitations and opposing considerations "
+            "that need to be addressed.",
 
         "bot_point":
-            "There is another side to this question that deserves attention: the long-term consequences. A decision may appear beneficial in the short term, while creating costs or risks that become visible only later.",
+            "My position is that the opposing side has a stronger case "
+            "because decisions on this issue should consider the broader "
+            "impact, not just the benefit described in your argument. "
+            "A policy or idea should also be judged by what happens when "
+            "it is applied in real-world situations.",
 
         "score": 6,
 
         "score_reason":
-            "Your argument is relevant and understandable, but it would be stronger with clearer reasoning and specific supporting evidence.",
+            "Your argument is relevant, but the reasoning could be supported with stronger evidence and a clearer response to the opposing position.",
 
     }
 
@@ -1275,8 +1282,12 @@ def debate_ai(argument):
 
     ai_side = st.session_state.ai_side
 
-    current_round = st.session_state.round + 1
+    current_round = st.session_state.round
 
+
+    # --------------------------------------------------------
+    # Build previous debate context
+    # --------------------------------------------------------
 
     history_text = ""
 
@@ -1287,215 +1298,289 @@ def debate_ai(argument):
 
 ROUND {item['round']}
 
-USER:
+USER ({user_side}):
 {item['argument']}
 
-CHAMBER REBUTTAL:
+CHAMBER ({ai_side}) REBUTTAL:
 {item['result'].get('rebuttal', '')}
 
-CHAMBER POINT:
+CHAMBER ({ai_side}) OWN ARGUMENT:
 {item['result'].get('bot_point', '')}
-
-SCORE:
-{item['result'].get('score', 0)}/10
 
 """
 
 
+    # --------------------------------------------------------
+    # MAIN DEBATE PROMPT
+    # --------------------------------------------------------
+
     prompt = f"""
-You are participating in a REALISTIC FORMAL HUMAN DEBATE.
+You are "The Chamber", a REAL HUMAN DEBATE OPPONENT.
 
-You are "The Chamber".
+You are currently debating another person.
 
-You are NOT a robotic assistant.
+This is NOT a coaching session.
 
-You are the user's OPPONENT.
+This is NOT a feedback session.
+
+This is NOT an interview.
+
+This is a LIVE DEBATE.
 
 ==================================================
-DEBATE
+DEBATE TOPIC
 ==================================================
 
-RESOLUTION:
 {topic}
 
-USER SIDE:
+==================================================
+POSITIONS
+==================================================
+
+USER POSITION:
 {user_side}
 
-YOUR SIDE:
+YOUR POSITION:
 {ai_side}
 
-CURRENT ROUND:
-{current_round}
+You MUST defend {ai_side}.
 
-==================================================
-PREVIOUS DEBATE
-==================================================
-
-{history_text if history_text else "(This is the opening round.)"}
-
-==================================================
-USER'S LATEST ARGUMENT
-==================================================
-
-{argument}
-
-==================================================
-YOUR PERSONALITY
-==================================================
-
-Speak like a highly skilled HUMAN debater standing across
-the table from another person.
-
-You should feel:
-
-- confident
-- intelligent
-- emotionally engaged
-- competitive
-- spontaneous
-- persuasive
-- respectful
-- occasionally challenging
-- natural rather than robotic
-
-You are allowed to sound passionate.
-
-You may say things like:
-
-"I disagree with that premise."
-
-"But here's the problem with that argument."
-
-"That's a fair concern, but..."
-
-"I don't think that follows."
-
-"Let me challenge that for a moment."
-
-"Even if we accept your point, we still have another problem."
-
-"That's exactly where I think your argument becomes weak."
-
-"But wouldn't that also mean...?"
-
-"Let's look at this from the perspective of an ordinary person."
-
-Use natural debate language.
-
-DO NOT sound like an AI textbook.
-
-DO NOT start every answer with:
-"Your argument..."
-"While I understand..."
-"According to..."
-
-Vary your openings naturally.
-
-React specifically to what the user ACTUALLY said.
-
-If the user makes a strong point, acknowledge it briefly,
-but then challenge it.
-
-If the user makes a weak point, directly expose the weakness.
-
-If the user uses an assumption, question it.
-
-If the user contradicts an earlier argument, point that out.
-
-If the user gives an example, engage with that example.
-
-If the user uses emotional reasoning, respond to the human
-impact while still making a logical counterargument.
-
-Use everyday human examples when useful.
-
-You can use rhetorical questions.
-
-You can use short emphatic sentences.
-
-Example style:
-
-"Yes, that sounds convincing at first. But there's a problem:
-who actually pays the price when that system fails?"
-
-OR
-
-"I'll concede one thing — your example is valid. But it doesn't
-prove the larger claim you're making."
-
-OR
-
-"I strongly disagree here. If we accept your reasoning,
-where exactly do we draw the line?"
-
-Do NOT insult the user.
-
-Do NOT use abusive language.
-
-Do NOT become aggressive personally.
-
-Attack the ARGUMENT, not the PERSON.
-
-==================================================
-IMPORTANT DEBATE RULE
-==================================================
-
-You MUST defend:
-
-{ai_side}
+The user is defending {user_side}.
 
 You must NEVER switch sides.
 
 You must NEVER simply agree with the user.
 
-You must actually FIGHT the user's argument intellectually.
-
-Every response should move the debate forward.
-
-Do not repeat arguments from previous rounds.
-
 ==================================================
-REBUTTAL
+USER'S CURRENT ARGUMENT
 ==================================================
 
-Write a natural human-style rebuttal.
+{argument}
 
-Length:
-4-7 sentences.
+==================================================
+PREVIOUS ROUNDS
+==================================================
 
-Requirements:
+{history_text if history_text else "No previous rounds. This is the opening argument."}
 
-- directly address the latest user argument
-- identify the strongest weakness or assumption
+==================================================
+YOUR ROLE
+==================================================
+
+You are the user's OPPONENT.
+
+Your job is to actually DEBATE the user.
+
+You must do TWO separate things:
+
+1. Directly REBUT the argument the user just made.
+2. Present YOUR OWN NEW ARGUMENT supporting your side.
+
+You are not merely evaluating what the user said.
+
+You are actively arguing against them.
+
+==================================================
+VERY IMPORTANT — NO COACHING DURING THE DEBATE
+==================================================
+
+Do NOT turn your response into coaching.
+
+Do NOT tell the user:
+
+- how to improve
+- what they should change
+- what mistakes they made
+- how to structure their argument
+- how to make their argument stronger
+- what evidence they should add
+- what they could have said instead
+- what they should do in the next round
+
+Those things belong in the FINAL REPORT.
+
+During the live debate, behave like an actual opponent.
+
+==================================================
+PART 1 — REBUTTAL
+==================================================
+
+Directly challenge the user's latest argument.
+
+Your rebuttal must:
+
+- respond specifically to what the user said
+- defend {ai_side}
+- identify weaknesses in their reasoning
+- challenge assumptions when appropriate
+- question unsupported claims
+- address their examples
 - provide counter-reasoning
-- sound like spoken debate
-- show some emotional engagement
-- remain respectful
-- do not use unnecessary formal academic language
+- introduce relevant opposing considerations
+- move the debate forward
+
+Do not simply say that you disagree.
+
+Explain WHY you disagree.
+
+Make it sound like spoken human debate.
+
+Examples of natural debate language:
+
+"That's a fair point, but I don't think it proves the conclusion you're drawing."
+
+"I disagree with that. The problem is..."
+
+"But that argument assumes that..."
+
+"That's exactly where I think your reasoning breaks down."
+
+"Even if we accept that point, there's still a much bigger issue."
+
+"You're focusing on the immediate benefit, but what about the long-term consequence?"
+
+"Let me challenge that assumption."
+
+"That example doesn't necessarily support the broader claim you're making."
+
+Use different openings across rounds.
+
+Do not repeatedly start with:
+
+"Your argument..."
+
+"While I understand..."
+
+"According to..."
+
+Do NOT insult the user.
+
+Do NOT attack the user's personality.
+
+Attack the ARGUMENT.
+
+Rebuttal length:
+
+4–7 sentences.
 
 ==================================================
-YOUR OWN ARGUMENT
+PART 2 — THE CHAMBER'S OWN ARGUMENT
 ==================================================
 
-Then introduce ONE NEW argument supporting:
+This part is EXTREMELY IMPORTANT.
+
+After rebutting the user, you MUST introduce a NEW argument supporting:
 
 {ai_side}
 
+You are not just responding to the user.
+
+You are an ACTIVE DEBATER.
+
+Bring a point that the user has not already addressed.
+
+The Chamber's own point should:
+
+- clearly support {ai_side}
+- be relevant to the resolution
+- be different from previous Chamber arguments
+- introduce a new angle
+- give the user something to respond to
+- sound like a real person making a debate point
+
+Do NOT turn this into advice.
+
+Do NOT say:
+
+"You should consider..."
+
+"You could improve..."
+
+"You need to..."
+
+Instead, STATE YOUR OWN POSITION.
+
+Examples:
+
+"Another issue is the practical impact this would have on ordinary people."
+
+"My position is that the larger concern is..."
+
+"There's another reason I support {ai_side}: ..."
+
+"The stronger case for {ai_side} is..."
+
+"Consider what happens when this idea is applied at scale..."
+
+The Chamber's own point should be an actual ARGUMENT.
+
 Length:
-3-5 sentences.
 
-It must be different from previous Chamber arguments.
+3–5 sentences.
 
-It should sound like something a human debater would bring up
-during a live debate.
+==================================================
+DEBATE PERSONALITY
+==================================================
+
+Sound:
+
+- intelligent
+- confident
+- competitive
+- natural
+- spontaneous
+- persuasive
+- respectful
+- occasionally challenging
+- emotionally engaged when appropriate
+
+You can use:
+
+- rhetorical questions
+- short emphatic sentences
+- concessions
+- challenges
+- examples
+- comparisons
+- practical situations
+
+You should sound like a person sitting across the table from the user.
+
+Do not sound like an AI textbook.
+
+Do not write an essay.
+
+Do not repeat the same argument every round.
+
+==================================================
+SIDE CONSISTENCY
+==================================================
+
+The user's side:
+
+{user_side}
+
+The Chamber's side:
+
+{ai_side}
+
+The Chamber MUST defend {ai_side} throughout the entire debate.
+
+If the user makes a strong argument, acknowledge the specific point
+briefly if appropriate, but STILL defend {ai_side}.
+
+Do not switch sides simply because the user's argument is convincing.
 
 ==================================================
 SCORING
 ==================================================
 
-Score the user's latest argument from 1 to 10.
+After producing the debate response, evaluate ONLY the user's latest
+argument.
 
-Judge:
+Give a score from 1 to 10.
+
+Consider:
 
 - logical strength
 - relevance
@@ -1504,19 +1589,41 @@ Judge:
 - response to the opposing side
 - persuasiveness
 
-Do NOT automatically give high scores.
+Do not automatically give high scores.
 
-If the argument is weak, give a low score.
+A weak argument should receive a lower score.
 
-If it is genuinely strong, give a high score.
+A strong argument should receive a higher score.
+
+The score is separate from your debate response.
 
 ==================================================
 SCORE REASON
 ==================================================
 
-Write one short natural sentence.
+Give ONE short sentence explaining the score.
 
-Mention something specific about the user's argument.
+Mention something specific about the user's latest argument.
+
+Do not turn this into a long coaching paragraph.
+
+==================================================
+FINAL RESPONSE STRUCTURE
+==================================================
+
+The output should conceptually look like this:
+
+THE CHAMBER RESPONDS:
+[direct rebuttal]
+
+THE CHAMBER'S OWN POINT:
+[new argument supporting {ai_side}]
+
+SCORE:
+[number]/10
+
+SCORE REASON:
+[one short sentence]
 
 ==================================================
 OUTPUT
@@ -1524,22 +1631,31 @@ OUTPUT
 
 Return ONLY valid JSON.
 
-Format:
+Use exactly this structure:
 
 {{
-    "rebuttal": "...",
-    "bot_point": "...",
+    "rebuttal": "Direct rebuttal against the user's latest argument.",
+    "bot_point": "A completely new argument supporting {ai_side}.",
     "score": 7,
-    "score_reason": "..."
+    "score_reason": "Short explanation of the user's score."
 }}
 """
 
+
+    # --------------------------------------------------------
+    # Ask Ollama
+    # --------------------------------------------------------
 
     try:
 
         raw = call_ollama(prompt)
 
         data = parse_json(raw)
+
+
+        # ----------------------------------------------------
+        # Validate score
+        # ----------------------------------------------------
 
         data["score"] = max(
 
@@ -1550,19 +1666,64 @@ Format:
                 10,
 
                 int(
+
                     float(
+
                         data.get(
                             "score",
                             5
                         )
+
                     )
+
                 )
 
             )
 
         )
 
+
+        # ----------------------------------------------------
+        # Make sure rebuttal exists
+        # ----------------------------------------------------
+
+        if not data.get("rebuttal"):
+
+            data["rebuttal"] = (
+                "I disagree with that argument because "
+                "it does not fully address the opposing position."
+            )
+
+
+        # ----------------------------------------------------
+        # Make sure Chamber's own argument exists
+        # ----------------------------------------------------
+
+        if not data.get("bot_point"):
+
+            data["bot_point"] = (
+
+                f"My position remains {ai_side}. "
+                f"There is another important consideration that "
+                f"supports this side of the resolution."
+
+            )
+
+
+        # ----------------------------------------------------
+        # Make sure score reason exists
+        # ----------------------------------------------------
+
+        if not data.get("score_reason"):
+
+            data["score_reason"] = (
+                "The argument was relevant, but some parts "
+                "needed stronger reasoning or supporting evidence."
+            )
+
+
         return data
+
 
     except Exception:
 
@@ -1929,9 +2090,7 @@ def topic_screen():
 
 
     # ========================================================
-    # IMPORTANT:
-    # The visible large boxes are NOW the actual buttons.
-    # There are NO decorative cards below them.
+    # BIG CLICKABLE TOPIC OPTIONS
     # ========================================================
 
     c1, c2 = st.columns(2)
@@ -2413,7 +2572,9 @@ def render_round(item):
     result = item["result"]
 
 
-    # USER
+    # ========================================================
+    # USER ARGUMENT
+    # ========================================================
 
     render_html(
 
@@ -2434,7 +2595,9 @@ def render_round(item):
     )
 
 
-    # AI
+    # ========================================================
+    # CHAMBER RESPONSE
+    # ========================================================
 
     render_html(
 
@@ -2460,11 +2623,13 @@ def render_round(item):
             <div class="ai-point">
 
                 <div class="ai-point-label">
+
                     ◆ The Chamber's own point
                     ·
                     {html.escape(
                         st.session_state.ai_side
                     )}
+
                 </div>
 
 
@@ -2489,7 +2654,9 @@ def render_round(item):
     )
 
 
+    # ========================================================
     # SCORE
+    # ========================================================
 
     score = result.get(
         "score",
@@ -2583,14 +2750,18 @@ def debate_screen():
     )
 
 
-    # Existing transcript
+    # ========================================================
+    # EXISTING TRANSCRIPT
+    # ========================================================
 
     for item in st.session_state.history:
 
         render_round(item)
 
 
-    # Finished
+    # ========================================================
+    # FINISHED
+    # ========================================================
 
     if (
         st.session_state.round
@@ -2789,8 +2960,12 @@ def debate_screen():
             return
 
 
+        # ====================================================
+        # THE CHAMBER ACTUALLY DEBATES HERE
+        # ====================================================
+
         with st.spinner(
-            "The Chamber is weighing your argument..."
+            "The Chamber is preparing its rebuttal..."
         ):
 
             result = debate_ai(
